@@ -55,6 +55,51 @@ procedure Devcert_Tools is
       return Ada.Strings.Fixed.Trim (Text, Ada.Strings.Both);
    end Trim;
 
+   function Starts_With (Text : String; Prefix : String) return Boolean is
+   begin
+      return Text'Length >= Prefix'Length
+        and then Text (Text'First .. Text'First + Prefix'Length - 1) = Prefix;
+   end Starts_With;
+
+   function Strip_Pin_Blocks (Content : String) return String is
+      Result       : Unbounded_String;
+      Position     : Positive := Content'First;
+      Line_Start   : Positive;
+      Line_End     : Natural;
+      In_Pin_Block : Boolean := False;
+   begin
+      while Position <= Content'Last loop
+         Line_Start := Position;
+         Line_End := Line_Start - 1;
+         while Position <= Content'Last and then Content (Position) /= ASCII.LF loop
+            Line_End := Position;
+            Position := Position + 1;
+         end loop;
+
+         declare
+            Line : constant String :=
+              (if Line_End >= Line_Start then Content (Line_Start .. Line_End) else "");
+            Clean : constant String := Trim (Line);
+         begin
+            if Clean = "[[pins]]" then
+               In_Pin_Block := True;
+            elsif In_Pin_Block and then Starts_With (Clean, "[[") then
+               In_Pin_Block := False;
+               Append (Result, Line);
+               Append (Result, ASCII.LF);
+            elsif not In_Pin_Block then
+               Append (Result, Line);
+               Append (Result, ASCII.LF);
+            end if;
+         end;
+
+         if Position <= Content'Last and then Content (Position) = ASCII.LF then
+            Position := Position + 1;
+         end if;
+      end loop;
+      return To_String (Result);
+   end Strip_Pin_Blocks;
+
    function Is_Source_File (Name : String) return Boolean is
       L : constant String := Lower (Name);
    begin
@@ -235,6 +280,37 @@ procedure Devcert_Tools is
       Put_Line ("manifest-check passed");
    end Run_Manifest_Check;
 
+   procedure Sanitize_Release_Manifest (Path : String) is
+      use Project_Tools.Files;
+   begin
+      if File_Exists (Path) then
+         Write_Text_File (Path, Strip_Pin_Blocks (Read_Raw_File (Path)));
+      end if;
+   end Sanitize_Release_Manifest;
+
+   procedure Run_Release_Artifact_Manifest_Check (Target : String) is
+      State : Check_State;
+
+      procedure Check_File (Relative_Path : String) is
+         Path : constant String := Target & "/" & Relative_Path;
+      begin
+         if Project_Tools.Files.File_Contains (Path, "[[pins]]") then
+            Fail (State, Path, "release artifact manifest contains pins");
+         end if;
+         if Project_Tools.Files.File_Contains (Path, "path =") then
+            Fail (State, Path, "release artifact manifest contains local path pin");
+         end if;
+         if Project_Tools.Files.File_Contains (Path, "../") then
+            Fail (State, Path, "release artifact manifest contains parent path");
+         end if;
+      end Check_File;
+   begin
+      Check_File ("alire.toml");
+      Check_File ("devcert_tools/alire.toml");
+      Check_File ("devcert_tests/alire.toml");
+      Require_Success (State, "release artifact manifest check");
+   end Run_Release_Artifact_Manifest_Check;
+
    procedure Run_Catalog_Check is
       State : Check_State;
       Path  : constant String := Project_Root & "/config/messages/en.catalog";
@@ -387,6 +463,10 @@ procedure Devcert_Tools is
           To_Unbounded_String ("lib"),
           To_Unbounded_String ("dist")],
          [To_Unbounded_String ("alire.lock")]);
+      Sanitize_Release_Manifest (Target & "/alire.toml");
+      Sanitize_Release_Manifest (Target & "/devcert_tools/alire.toml");
+      Sanitize_Release_Manifest (Target & "/devcert_tests/alire.toml");
+      Run_Release_Artifact_Manifest_Check (Target);
       Put_Line ("dist staged at " & Target);
    end Run_Dist;
 
