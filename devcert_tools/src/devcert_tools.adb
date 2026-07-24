@@ -311,6 +311,65 @@ procedure Devcert_Tools is
       Require_Success (State, "release artifact manifest check");
    end Run_Release_Artifact_Manifest_Check;
 
+   procedure Run_Tooling_Tests is
+      State : Check_State;
+      Temp  : constant String := "/tmp/devcert-tools-selftest";
+
+      procedure Assert_True (Condition : Boolean; Message : String) is
+      begin
+         if not Condition then
+            Fail (State, "tooling-tests", Message);
+         end if;
+      end Assert_True;
+
+      Clean_Manifest : constant String :=
+        "name = ""sample""" & ASCII.LF
+        & ASCII.LF
+        & "[[depends-on]]" & ASCII.LF
+        & "cryptolib = ""*""" & ASCII.LF
+        & ASCII.LF;
+      Pinned_Manifest : constant String :=
+        Clean_Manifest
+        & "[[pins]]" & ASCII.LF
+        & "cryptolib = { path = ""../cryptolib"" }" & ASCII.LF
+        & ASCII.LF
+        & "[[actions]]" & ASCII.LF
+        & "type = ""test""" & ASCII.LF;
+      Stripped : constant String := Strip_Pin_Blocks (Pinned_Manifest);
+   begin
+      Assert_True
+        (not Project_Tools.Text.Contains (Stripped, "[[pins]]"),
+         "pin block stripping removes pin header");
+      Assert_True
+        (not Project_Tools.Text.Contains (Stripped, "path ="),
+         "pin block stripping removes local path entries");
+      Assert_True
+        (Project_Tools.Text.Contains (Stripped, "[[actions]]"),
+         "pin block stripping preserves following manifest sections");
+
+      if Project_Tools.Files.Directory_Exists (Temp) then
+         Project_Tools.Files.Delete_Tree (Temp);
+      end if;
+      Ada.Directories.Create_Path (Temp & "/devcert_tools");
+      Ada.Directories.Create_Path (Temp & "/devcert_tests");
+      Project_Tools.Files.Write_Text_File (Temp & "/alire.toml", Clean_Manifest);
+      Project_Tools.Files.Write_Text_File
+        (Temp & "/devcert_tools/alire.toml", Clean_Manifest);
+      Project_Tools.Files.Write_Text_File
+        (Temp & "/devcert_tests/alire.toml", Clean_Manifest);
+      Run_Release_Artifact_Manifest_Check (Temp);
+      Project_Tools.Files.Delete_Tree (Temp);
+
+      Require_Success (State, "tooling-tests");
+      Put_Line ("tooling-tests passed");
+   exception
+      when others =>
+         if Project_Tools.Files.Directory_Exists (Temp) then
+            Project_Tools.Files.Delete_Tree (Temp);
+         end if;
+         raise;
+   end Run_Tooling_Tests;
+
    procedure Run_Catalog_Check is
       State : Check_State;
       Path  : constant String := Project_Root & "/config/messages/en.catalog";
@@ -445,6 +504,16 @@ procedure Devcert_Tools is
         ("tooling build", Project_Root & "/devcert_tools", Alr, [new String'("build")]);
       Project_Tools.Release_Checks.Run
         ("test build", Project_Root & "/devcert_tests", Alr, [new String'("build")]);
+      Project_Tools.Processes.Run
+        ("runtime tests",
+         Project_Root,
+         Project_Root & "/devcert_tests/bin/devcert_tests",
+         [1 .. 0 => <>]);
+      Project_Tools.Processes.Run
+        ("tooling tests",
+         Project_Root,
+         Project_Root & "/devcert_tools/bin/devcert_tools",
+         [new String'("tooling-tests")]);
       Put_Line ("release-check passed");
    end Run_Release_Check;
 
@@ -483,6 +552,7 @@ procedure Devcert_Tools is
       Put_Line ("  dist");
       Put_Line ("  documentation");
       Put_Line ("  parity-check");
+      Put_Line ("  tooling-tests");
    end Print_Usage;
 
    Command : constant String :=
@@ -508,6 +578,8 @@ begin
       Run_Documentation_Check;
    elsif Command = "parity-check" then
       Run_Parity_Check;
+   elsif Command = "tooling-tests" then
+      Run_Tooling_Tests;
    else
       Put_Line (Standard_Error, "unknown devcert_tools command: " & Command);
       Print_Usage;

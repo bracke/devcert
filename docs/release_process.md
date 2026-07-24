@@ -12,7 +12,9 @@ bin/devcert_tools dist
 The release checklist requires:
 
 * runtime build
+* runtime tests
 * tooling build
+* tooling tests
 * test build
 * documentation checks
 * style checks
@@ -21,6 +23,10 @@ The release checklist requires:
 * tree checks
 * generated-artifact checks
 * mkcert parity checks
+
+The `tooling-tests` command is part of the Ada tooling executable and verifies
+project-specific release mechanics such as manifest pin stripping and staged
+manifest validation.
 
 Release artifacts are staged below `dist/` and exclude local build products and
 local Alire state.
