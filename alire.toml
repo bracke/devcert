@@ -1,0 +1,37 @@
+name = "devcert"
+description = "Local development certificate authority and certificate tool"
+version = "0.1.0-dev"
+website = "https://github.com/bracke/devcert"
+authors = ["Bent Bracke"]
+maintainers = ["Bent Bracke <bent@bracke.dk>"]
+maintainers-logins = ["bracke"]
+licenses = "MIT OR Apache-2.0 WITH LLVM-exception"
+executables = ["devcert"]
+
+[[depends-on]]
+gnat_native = "=15.2.1"
+
+[[depends-on]]
+cryptolib = "*"
+
+[[depends-on]]
+i18n = "*"
+
+[[depends-on]]
+terminal_styles = "*"
+
+[[pins]]
+cryptolib = { path = "../cryptolib" }
+
+[[pins]]
+i18n = { path = "../i18n" }
+
+[[pins]]
+terminal_styles = { path = "../terminal_styles" }
+
+[build-profiles]
+"*" = "development"
+
+[[actions]]
+type = "test"
+command = ["alr", "-C", "devcert_tests", "build"]

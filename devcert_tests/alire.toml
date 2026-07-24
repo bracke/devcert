@@ -1,0 +1,19 @@
+name = "devcert_tests"
+description = "AUnit tests for devcert"
+version = "0.1.0-dev"
+executables = ["devcert_tests"]
+
+[[depends-on]]
+gnat_native = "=15.2.1"
+
+[[depends-on]]
+aunit = "*"
+
+[[depends-on]]
+devcert = "*"
+
+[[pins]]
+devcert = { path = ".." }
+
+[build-profiles]
+"*" = "development"

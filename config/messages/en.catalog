@@ -1,0 +1,5 @@
+app.name=devcert
+cli.usage=usage: devcert [--help] [--version] [--json]
+error.unknown_command=unknown command
+json.schema=1
+release.passed=release-check passed

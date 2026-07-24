@@ -1,0 +1,18 @@
+with "config/devcert_config.gpr";
+with "../cryptolib/cryptolib.gpr";
+with "../i18n/i18n.gpr";
+with "../terminal_styles/terminal_styles.gpr";
+
+project Devcert is
+   for Source_Dirs use ("src", "app", "config");
+   for Object_Dir use "obj/" & Devcert_Config.Build_Profile;
+   for Exec_Dir use "bin";
+   for Main use ("devcert.adb");
+   for Create_Missing_Dirs use "True";
+
+   package Compiler is
+      for Default_Switches ("Ada") use
+        Devcert_Config.Ada_Compiler_Switches
+        & ("-gnat2022", "-gnatwa", "-gnatwe", "-gnatyM100");
+   end Compiler;
+end Devcert;

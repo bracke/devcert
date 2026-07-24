@@ -1,0 +1,43 @@
+# Ada/GNAT build outputs
+/bin/
+/obj/
+**/bin/
+**/obj/
+*.ali
+*.o
+*.so
+*.a
+*.lexch
+*.bexch
+*.cswi
+*.stdout
+*.stderr
+
+# Alire local state
+/alire/
+**/alire/
+
+# Release packaging output
+/dist/
+
+# Local devcert state and generated private material
+/.devcert/
+/ca/
+/certificates/
+*.key
+*.p12
+*.pfx
+*.crt
+*.csr
+
+# Temporary and editor files
+*~
+*.bak
+*.tmp
+*.swp
+*.swo
+.#*
+
+# OS metadata
+.DS_Store
+Thumbs.db

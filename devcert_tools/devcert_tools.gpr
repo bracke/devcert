@@ -1,0 +1,16 @@
+with "config/devcert_tools_config.gpr";
+with "../../project_tools/project_tools.gpr";
+
+project Devcert_Tools is
+   for Source_Dirs use ("src", "config");
+   for Object_Dir use "obj/" & Devcert_Tools_Config.Build_Profile;
+   for Exec_Dir use "bin";
+   for Main use ("devcert_tools.adb");
+   for Create_Missing_Dirs use "True";
+
+   package Compiler is
+      for Default_Switches ("Ada") use
+        Devcert_Tools_Config.Ada_Compiler_Switches
+        & ("-gnat2022", "-gnatwa", "-gnatwe", "-gnatyM100");
+   end Compiler;
+end Devcert_Tools;
