@@ -357,20 +357,6 @@ package body Devcert.CLI is
             Index      : Positive := Command_Index + 1;
             Seen_Store : Boolean := False;
          begin
-            if Ada.Environment_Variables.Exists ("DEVCERT_TRUST_STORES") then
-               if not Devcert_Trust_Stores.Selection_From_Text
-                 (Ada.Environment_Variables.Value ("DEVCERT_TRUST_STORES"),
-                  Selection)
-               then
-                  Usage_Error
-                    (Devcert_Messages.Text
-                       ("error.unknown_trust_store",
-                        Ada.Environment_Variables.Value ("DEVCERT_TRUST_STORES")));
-                  return False;
-               end if;
-               Seen_Store := True;
-            end if;
-
             while Index <= Ada.Command_Line.Argument_Count loop
                declare
                   Item : constant String := Argument (Index);
@@ -413,6 +399,21 @@ package body Devcert.CLI is
                   Index := Index + 1;
                end;
             end loop;
+
+            if not Seen_Store
+              and then Ada.Environment_Variables.Exists ("DEVCERT_TRUST_STORES")
+            then
+               if not Devcert_Trust_Stores.Selection_From_Text
+                 (Ada.Environment_Variables.Value ("DEVCERT_TRUST_STORES"),
+                  Selection)
+               then
+                  Usage_Error
+                    (Devcert_Messages.Text
+                       ("error.unknown_trust_store",
+                        Ada.Environment_Variables.Value ("DEVCERT_TRUST_STORES")));
+                  return False;
+               end if;
+            end if;
             return True;
          end Parse_Selection;
       begin

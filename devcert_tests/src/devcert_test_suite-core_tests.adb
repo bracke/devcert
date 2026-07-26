@@ -252,6 +252,9 @@ package body Devcert_Test_Suite.Core_Tests is
       Env_Override : constant String := "/tmp/devcert-aunit-cli-env-override";
       CLI_Root     : constant String := "/tmp/devcert-aunit-cli-override-root";
       Dup_Root     : constant String := "/tmp/devcert-aunit-cli-duplicate";
+      Trust_Root   : constant String := "/tmp/devcert-aunit-cli-trust-root";
+      Trust_Dir    : constant String := "/tmp/devcert-aunit-cli-trust-dir";
+      Bad_Env_Root : constant String := "/tmp/devcert-aunit-cli-bad-env";
       Code         : Integer := 0;
       Output       : Unbounded_String;
    begin
@@ -272,6 +275,15 @@ package body Devcert_Test_Suite.Core_Tests is
       end if;
       if Ada.Directories.Exists (Dup_Root) then
          Ada.Directories.Delete_Tree (Dup_Root);
+      end if;
+      if Ada.Directories.Exists (Trust_Root) then
+         Ada.Directories.Delete_Tree (Trust_Root);
+      end if;
+      if Ada.Directories.Exists (Trust_Dir) then
+         Ada.Directories.Delete_Tree (Trust_Dir);
+      end if;
+      if Ada.Directories.Exists (Bad_Env_Root) then
+         Ada.Directories.Delete_Tree (Bad_Env_Root);
       end if;
 
       Run_Devcert
@@ -352,6 +364,43 @@ package body Devcert_Test_Suite.Core_Tests is
         (not Ada.Directories.Exists (Env_Override),
          "--ca-root prevents mutation of DEVCERT_CAROOT directory");
       Ada.Environment_Variables.Clear ("DEVCERT_CAROOT");
+
+      Ada.Environment_Variables.Set ("DEVCERT_TRUST_STORES", "definitely-bad");
+      Ada.Environment_Variables.Set ("DEVCERT_LINUX_TRUST_DIR", Trust_Dir);
+      Run_Devcert
+        ([new String'("--ca-root"),
+          new String'(Trust_Root),
+          new String'("--plain"),
+          new String'("install"),
+          new String'("--trust-store"),
+          new String'("system")],
+         Code,
+         Output);
+      Assert
+        (Code = Devcert_Exit_Codes.Success,
+         "--trust-store overrides invalid DEVCERT_TRUST_STORES");
+      Assert
+        (Ada.Directories.Exists (Trust_Dir),
+         "trust-store CLI override reaches isolated Linux backend");
+
+      Run_Devcert
+        ([new String'("--ca-root"),
+          new String'(Bad_Env_Root),
+          new String'("--plain"),
+          new String'("install")],
+         Code,
+         Output);
+      Assert
+        (Code = Devcert_Exit_Codes.Usage_Error,
+         "invalid DEVCERT_TRUST_STORES is rejected when no CLI override exists");
+      Assert
+        (Index (Output, "unknown trust store: definitely-bad") /= 0,
+         "invalid trust-store environment diagnostic is deterministic");
+      Assert
+        (not Ada.Directories.Exists (Bad_Env_Root),
+         "invalid trust-store environment does not create CA root");
+      Ada.Environment_Variables.Clear ("DEVCERT_TRUST_STORES");
+      Ada.Environment_Variables.Clear ("DEVCERT_LINUX_TRUST_DIR");
    end Run_Test;
 
    overriding function Name (Item : Json_Escape_Test) return AUnit.Message_String is
