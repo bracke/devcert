@@ -1,0 +1,6 @@
+default_locale = en
+en.app.name = "devcert"
+en.cli.usage = "usage: devcert [--help] [--version] [--json] <command>"
+en.error.unknown_command = "unknown command"
+en.json.schema = "1"
+en.release.passed = "release-check passed"

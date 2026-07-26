@@ -1,6 +1,7 @@
 with "config/devcert_config.gpr";
 with "../cryptolib/cryptolib.gpr";
 with "../i18n/i18n.gpr";
+with "../messages/messages.gpr";
 with "../terminal_styles/terminal_styles.gpr";
 
 project Devcert is
@@ -15,4 +16,10 @@ project Devcert is
         Devcert_Config.Ada_Compiler_Switches
         & ("-gnat2022", "-gnatwa", "-gnatwe", "-gnatyM100");
    end Compiler;
+
+   --  Ship share/ (the message catalog and the bundled i18n locale data) so a
+   --  deployed devcert renders localized output.
+   package Install is
+      for Artifacts (".") use ("share");
+   end Install;
 end Devcert;
