@@ -2,6 +2,7 @@ with Ada.Characters.Handling;
 with Ada.Containers.Indefinite_Vectors;
 with Ada.Command_Line;
 with Ada.Directories;
+with Ada.Environment_Variables;
 with Ada.Exceptions;
 with Ada.Streams;
 with Ada.Streams.Stream_IO;
@@ -940,6 +941,108 @@ procedure Devcert_Tools is
       Put_Line ("dist staged at " & Target);
    end Run_Dist;
 
+   procedure Run_Linux_System_Platform_Check is
+      State       : Check_State;
+      Devcert_Bin : constant String := Project_Root & "/bin/devcert";
+      CA_Root     : constant String :=
+        Project_Tools.Files.Temp_Dir & "/devcert-platform-linux-system";
+      Install_Status   : Integer;
+      Doctor_Status    : Integer;
+      Uninstall_Status : Integer;
+   begin
+      if not Ada.Environment_Variables.Exists
+        ("DEVCERT_RUN_PLATFORM_TRUST_TESTS")
+        or else Ada.Environment_Variables.Value
+          ("DEVCERT_RUN_PLATFORM_TRUST_TESTS") /= "1"
+      then
+         Fail
+           (State,
+            "platform-check",
+            "set DEVCERT_RUN_PLATFORM_TRUST_TESTS=1 to mutate host trust");
+         Require_Success (State, "platform-check");
+      end if;
+
+      Project_Tools.Files.Require_File
+        (Devcert_Bin,
+         "build bin/devcert before running platform trust checks");
+
+      if Project_Tools.Files.Directory_Exists (CA_Root) then
+         Project_Tools.Files.Delete_Tree (CA_Root);
+      end if;
+
+      Put_Line ("platform-check linux-system using CA root " & CA_Root);
+
+      Install_Status :=
+        Project_Tools.Processes.Run_Status
+          ("linux system trust install",
+           Project_Root,
+           Devcert_Bin,
+           [new String'("--ca-root"),
+            new String'(CA_Root),
+            new String'("install"),
+            new String'("--trust-store"),
+            new String'("system")]);
+
+      Doctor_Status :=
+        Project_Tools.Processes.Run_Status
+          ("linux system trust doctor",
+           Project_Root,
+           Devcert_Bin,
+           [new String'("--ca-root"),
+            new String'(CA_Root),
+            new String'("doctor")]);
+
+      Uninstall_Status :=
+        Project_Tools.Processes.Run_Status
+          ("linux system trust uninstall",
+           Project_Root,
+           Devcert_Bin,
+           [new String'("--ca-root"),
+            new String'(CA_Root),
+            new String'("uninstall"),
+            new String'("--trust-store"),
+            new String'("system")]);
+
+      if Install_Status /= 0 then
+         Fail (State, "platform-check", "linux system install failed");
+      end if;
+      if Doctor_Status /= 0 then
+         Fail (State, "platform-check", "linux platform CA validation failed");
+      end if;
+      if Uninstall_Status /= 0 then
+         Fail (State, "platform-check", "linux system uninstall failed");
+      end if;
+
+      if Project_Tools.Files.Directory_Exists (CA_Root) then
+         Project_Tools.Files.Delete_Tree (CA_Root);
+      end if;
+
+      Require_Success (State, "platform-check");
+      Put_Line ("platform-check linux-system passed");
+   exception
+      when others =>
+         if Project_Tools.Files.Directory_Exists (CA_Root) then
+            Project_Tools.Files.Delete_Tree (CA_Root);
+         end if;
+         raise;
+   end Run_Linux_System_Platform_Check;
+
+   procedure Run_Platform_Check is
+      Target : constant String :=
+        (if Ada.Command_Line.Argument_Count >= 2
+         then Ada.Command_Line.Argument (2)
+         else "");
+   begin
+      if Target = "linux-system" then
+         Run_Linux_System_Platform_Check;
+      else
+         Put_Line
+           (Standard_Error,
+            "usage: devcert_tools platform-check linux-system");
+         Ada.Command_Line.Set_Exit_Status (Ada.Command_Line.Failure);
+      end if;
+   end Run_Platform_Check;
+
    procedure Print_Usage is
    begin
       Put_Line ("usage: devcert_tools <command>");
@@ -954,6 +1057,7 @@ procedure Devcert_Tools is
       Put_Line ("  documentation");
       Put_Line ("  parity-check");
       Put_Line ("  tooling-tests");
+      Put_Line ("  platform-check linux-system");
    end Print_Usage;
 
    Command : constant String :=
@@ -981,6 +1085,8 @@ begin
       Run_Parity_Check;
    elsif Command = "tooling-tests" then
       Run_Tooling_Tests;
+   elsif Command = "platform-check" then
+      Run_Platform_Check;
    else
       Put_Line (Standard_Error, "unknown devcert_tools command: " & Command);
       Print_Usage;

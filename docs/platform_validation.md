@@ -20,10 +20,14 @@ For each platform run, record:
 Run in a disposable container or virtual machine for each supported backend:
 
 ```text
-devcert --ca-root /tmp/devcert-platform-linux install --trust-store system
-devcert --ca-root /tmp/devcert-platform-linux doctor
-devcert --ca-root /tmp/devcert-platform-linux uninstall --trust-store system
+DEVCERT_RUN_PLATFORM_TRUST_TESTS=1 \
+  devcert_tools platform-check linux-system
 ```
+
+The command creates a temporary CA root, installs it into the detected Linux
+system trust backend, validates the CA state, uninstalls the root certificate,
+and removes the temporary CA root. It is opt-in because it mutates the host
+trust store and may require elevated privileges.
 
 Validate `update-ca-certificates`, `update-ca-trust`, and `trust anchor`
 backends where available.

@@ -66,10 +66,14 @@ cleanup.
 
 ## External Platform Coverage
 
+An opt-in Linux system mutation check is provided by
+`devcert_tools platform-check linux-system`. It is not part of the default
+release gate because it mutates the host trust store.
+
 Remaining coverage requiring external environments:
 
 * macOS Keychain mutation
 * Windows current-user certificate store mutation
-* distribution-specific Linux CA store mutation
+* distribution-specific Linux CA store mutation evidence
 * real NSS SQL database mutation
 * real Java keystore mutation
