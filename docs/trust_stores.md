@@ -86,3 +86,6 @@ macOS uses the `security` command when available. Windows uses `certutil` when
 available. Both adapters use fingerprint-derived operations and report missing
 platform tools explicitly. They are implemented as live command adapters, but
 require their native operating systems for end-to-end mutation tests.
+
+Platform validation commands and required evidence are documented in
+`docs/platform_validation.md`.
