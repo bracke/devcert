@@ -3,7 +3,7 @@
 The automated test suite lives in `devcert_tests` and uses AUnit. Runtime code
 does not depend on AUnit.
 
-The default suite currently contains 29 deterministic tests. Categories covered
+The default suite currently contains 30 deterministic tests. Categories covered
 by automated tests include:
 
 * CLI contracts through stable exit-code, JSON envelope, and no-mutation
@@ -16,6 +16,8 @@ by automated tests include:
 * CA store, metadata, invalid material states, permissions, and secure writes
 * cryptolib adapter boundaries
 * CSR and PKCS#12 error/status behavior
+* end-to-end install, certificate issuance, inspection, doctor, and uninstall
+  workflow against an isolated trust directory
 * trust-store target parsing, logical selection policy, fingerprint-derived
   aliases, aggregate edge states, and isolated Linux trust-store mutation
 * devcert localization policy, required catalog identifiers, locale precedence,

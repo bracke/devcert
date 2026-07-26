@@ -1194,6 +1194,139 @@ package body Devcert_Test_Suite.Core_Tests is
          "custom-artifact PKCS#12 output is DER");
    end Run_Test;
 
+   overriding function Name
+     (Item : Integration_Workflow_Test) return AUnit.Message_String
+   is
+      pragma Unreferenced (Item);
+   begin
+      return AUnit.Format ("install cert inspect doctor uninstall workflow");
+   end Name;
+
+   overriding procedure Run_Test
+     (Item : in out Integration_Workflow_Test)
+   is
+      pragma Unreferenced (Item);
+
+      procedure Run_Devcert
+        (Args        : GNAT.OS_Lib.Argument_List;
+         Exit_Code   : out Integer;
+         Output_Text : out Unbounded_String)
+      is
+         Spawned     : Boolean := False;
+         Output_File : constant String := "/tmp/devcert-aunit-workflow.out";
+      begin
+         if Ada.Directories.Exists (Output_File) then
+            Ada.Directories.Delete_File (Output_File);
+         end if;
+         GNAT.OS_Lib.Spawn
+           ("./bin/devcert",
+            Args,
+            Output_File,
+            Spawned,
+            Exit_Code,
+            Err_To_Out => True);
+         Output_Text :=
+           (if Ada.Directories.Exists (Output_File)
+            then To_Unbounded_String (Devcert_Secure_Files.Read (Output_File))
+            else Null_Unbounded_String);
+         if Ada.Directories.Exists (Output_File) then
+            Ada.Directories.Delete_File (Output_File);
+         end if;
+         if not Spawned then
+            Exit_Code := -1;
+         end if;
+      end Run_Devcert;
+
+      Root      : constant String := "/tmp/devcert-aunit-workflow-root";
+      Trust_Dir : constant String := "/tmp/devcert-aunit-workflow-trust";
+      Code      : Integer := 0;
+      Output    : Unbounded_String;
+   begin
+      if Ada.Directories.Exists (Root) then
+         Ada.Directories.Delete_Tree (Root);
+      end if;
+      if Ada.Directories.Exists (Trust_Dir) then
+         Ada.Directories.Delete_Tree (Trust_Dir);
+      end if;
+      Ada.Environment_Variables.Set ("DEVCERT_LINUX_TRUST_DIR", Trust_Dir);
+
+      Run_Devcert
+        ([new String'("--ca-root"),
+          new String'(Root),
+          new String'("--plain"),
+          new String'("install"),
+          new String'("--trust-store"),
+          new String'("system")],
+         Code,
+         Output);
+      Assert (Code = Devcert_Exit_Codes.Success, "install workflow succeeds");
+      Assert
+        (Ada.Directories.Exists (Root & "/rootCA.pem"),
+         "install creates the root certificate");
+      Assert
+        (Ada.Directories.Exists (Trust_Dir),
+         "install writes to isolated trust directory");
+
+      Run_Devcert
+        ([new String'("--ca-root"),
+          new String'(Root),
+          new String'("--plain"),
+          new String'("cert"),
+          new String'("localhost"),
+          new String'("127.0.0.1")],
+         Code,
+         Output);
+      Assert (Code = Devcert_Exit_Codes.Success, "cert workflow succeeds");
+      Assert
+        (Ada.Directories.Exists (Root & "/issued/localhost.pem"),
+         "cert workflow writes issued certificate");
+      Assert
+        (Ada.Directories.Exists (Root & "/issued/localhost-key.pem"),
+         "cert workflow writes issued private key");
+
+      Run_Devcert
+        ([new String'("--ca-root"),
+          new String'(Root),
+          new String'("--plain"),
+          new String'("inspect")],
+         Code,
+         Output);
+      Assert (Code = Devcert_Exit_Codes.Success, "inspect workflow succeeds");
+      Assert
+        (Index (Output, "fingerprint=") /= 0,
+         "inspect reports CA fingerprint");
+
+      Run_Devcert
+        ([new String'("--ca-root"),
+          new String'(Root),
+          new String'("--plain"),
+          new String'("doctor")],
+         Code,
+         Output);
+      Assert (Code = Devcert_Exit_Codes.Success, "doctor workflow succeeds");
+      Assert
+        (Index (Output, "doctor: ca complete") /= 0,
+         "doctor reports complete CA");
+
+      Run_Devcert
+        ([new String'("--ca-root"),
+          new String'(Root),
+          new String'("--plain"),
+          new String'("uninstall"),
+          new String'("--trust-store"),
+          new String'("system")],
+         Code,
+         Output);
+      Assert (Code = Devcert_Exit_Codes.Success, "uninstall workflow succeeds");
+      Assert
+        (Index (Output, "removed linux trust anchor") /= 0,
+         "uninstall reports isolated trust anchor removal");
+
+      Ada.Environment_Variables.Clear ("DEVCERT_LINUX_TRUST_DIR");
+      Ada.Directories.Delete_Tree (Root);
+      Ada.Directories.Delete_Tree (Trust_Dir);
+   end Run_Test;
+
    overriding function Name (Item : Trust_Target_Test) return AUnit.Message_String is
       pragma Unreferenced (Item);
    begin

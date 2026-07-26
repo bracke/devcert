@@ -120,6 +120,12 @@ package Devcert_Test_Suite.Core_Tests is
      (Item : Certificate_Custom_PKCS12_Test) return AUnit.Message_String;
    overriding procedure Run_Test (Item : in out Certificate_Custom_PKCS12_Test);
 
+   type Integration_Workflow_Test is
+     new AUnit.Simple_Test_Cases.Test_Case with null record;
+   overriding function Name
+     (Item : Integration_Workflow_Test) return AUnit.Message_String;
+   overriding procedure Run_Test (Item : in out Integration_Workflow_Test);
+
    type Trust_Target_Test is new AUnit.Simple_Test_Cases.Test_Case with null record;
    overriding function Name (Item : Trust_Target_Test) return AUnit.Message_String;
    overriding procedure Run_Test (Item : in out Trust_Target_Test);
