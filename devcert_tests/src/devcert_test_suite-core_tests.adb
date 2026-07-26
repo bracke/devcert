@@ -5,6 +5,8 @@ with Ada.Strings;
 with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded;
 
+with GNAT.OS_Lib;
+
 with Devcert_Core;
 with Devcert_Crypto;
 with Devcert_Exit_Codes;
@@ -203,6 +205,91 @@ package body Devcert_Test_Suite.Core_Tests is
            (Devcert.Trust_Stores.Java.Target, Devcert_Trust_Stores.Java),
          "Java trust facade is wired");
       Assert (not Context.JSON_Output, "default context is human output");
+   end Run_Test;
+
+   overriding function Name (Item : CLI_Contract_Test) return AUnit.Message_String is
+      pragma Unreferenced (Item);
+   begin
+      return AUnit.Format ("CLI contract and no-mutation errors");
+   end Name;
+
+   overriding procedure Run_Test (Item : in out CLI_Contract_Test) is
+      pragma Unreferenced (Item);
+
+      procedure Run_Devcert
+        (Args        : GNAT.OS_Lib.Argument_List;
+         Exit_Code   : out Integer;
+         Output_Text : out Unbounded_String)
+      is
+         Spawned     : Boolean := False;
+         Output_File : constant String := "/tmp/devcert-aunit-cli.out";
+      begin
+         if Ada.Directories.Exists (Output_File) then
+            Ada.Directories.Delete_File (Output_File);
+         end if;
+         GNAT.OS_Lib.Spawn
+           ("./bin/devcert",
+            Args,
+            Output_File,
+            Spawned,
+            Exit_Code,
+            Err_To_Out => True);
+         Output_Text :=
+           (if Ada.Directories.Exists (Output_File)
+            then To_Unbounded_String (Devcert_Secure_Files.Read (Output_File))
+            else Null_Unbounded_String);
+         if Ada.Directories.Exists (Output_File) then
+            Ada.Directories.Delete_File (Output_File);
+         end if;
+         if not Spawned then
+            Exit_Code := -1;
+         end if;
+      end Run_Devcert;
+
+      Unknown_Root : constant String := "/tmp/devcert-aunit-cli-unknown";
+      Option_Root  : constant String := "/tmp/devcert-aunit-cli-option";
+      Code         : Integer := 0;
+      Output       : Unbounded_String;
+   begin
+      if Ada.Directories.Exists (Unknown_Root) then
+         Ada.Directories.Delete_Tree (Unknown_Root);
+      end if;
+      if Ada.Directories.Exists (Option_Root) then
+         Ada.Directories.Delete_Tree (Option_Root);
+      end if;
+
+      Run_Devcert
+        ([new String'("--ca-root"),
+          new String'(Unknown_Root),
+          new String'("--plain"),
+          new String'("definitely-not-a-command")],
+         Code,
+         Output);
+      Assert (Code = Devcert_Exit_Codes.Usage_Error, "unknown command is usage");
+      Assert
+        (Index (Output, "unknown command") /= 0,
+         "unknown command emits deterministic diagnostic");
+      Assert
+        (not Ada.Directories.Exists (Unknown_Root),
+         "unknown command does not create CA root");
+
+      Run_Devcert
+        ([new String'("--ca-root"),
+          new String'(Option_Root),
+          new String'("--plain"),
+          new String'("cert"),
+          new String'("--definitely-bad")],
+         Code,
+         Output);
+      Assert
+        (Code = Devcert_Exit_Codes.Usage_Error,
+         "unknown cert option is usage");
+      Assert
+        (Index (Output, "unknown cert option --definitely-bad") /= 0,
+         "unknown cert option emits deterministic diagnostic");
+      Assert
+        (not Ada.Directories.Exists (Option_Root),
+         "unknown cert option does not create CA root");
    end Run_Test;
 
    overriding function Name (Item : Json_Escape_Test) return AUnit.Message_String is

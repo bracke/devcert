@@ -18,6 +18,10 @@ package Devcert_Test_Suite.Core_Tests is
      (Item : Architecture_Surface_Test) return AUnit.Message_String;
    overriding procedure Run_Test (Item : in out Architecture_Surface_Test);
 
+   type CLI_Contract_Test is new AUnit.Simple_Test_Cases.Test_Case with null record;
+   overriding function Name (Item : CLI_Contract_Test) return AUnit.Message_String;
+   overriding procedure Run_Test (Item : in out CLI_Contract_Test);
+
    type Json_Escape_Test is new AUnit.Simple_Test_Cases.Test_Case with null record;
    overriding function Name (Item : Json_Escape_Test) return AUnit.Message_String;
    overriding procedure Run_Test (Item : in out Json_Escape_Test);
