@@ -20,8 +20,8 @@ by automated tests include:
   workflow against an isolated trust directory
 * trust-store target parsing, logical selection policy, fingerprint-derived
   aliases, aggregate edge states, and isolated Linux trust-store mutation
-* devcert localization policy, required catalog identifiers, locale precedence,
-  and JSON stability
+* devcert localization policy, required catalog identifiers, locale/catalog
+  precedence, and JSON stability
 * security output invariants
 * deterministic clock behavior
 

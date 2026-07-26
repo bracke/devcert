@@ -455,6 +455,41 @@ package body Devcert_Test_Suite.Core_Tests is
            (Index (To_Unbounded_String (Catalog), "en." & Id & " =") /= 0,
             Path & " is missing devcert message id " & Id);
       end Assert_Catalog_Contains;
+
+      procedure Run_Devcert
+        (Args        : GNAT.OS_Lib.Argument_List;
+         Exit_Code   : out Integer;
+         Output_Text : out Unbounded_String)
+      is
+         Spawned     : Boolean := False;
+         Output_File : constant String := "/tmp/devcert-aunit-locale.out";
+      begin
+         if Ada.Directories.Exists (Output_File) then
+            Ada.Directories.Delete_File (Output_File);
+         end if;
+         GNAT.OS_Lib.Spawn
+           ("./bin/devcert",
+            Args,
+            Output_File,
+            Spawned,
+            Exit_Code,
+            Err_To_Out => True);
+         Output_Text :=
+           (if Ada.Directories.Exists (Output_File)
+            then To_Unbounded_String (Devcert_Secure_Files.Read (Output_File))
+            else Null_Unbounded_String);
+         if Ada.Directories.Exists (Output_File) then
+            Ada.Directories.Delete_File (Output_File);
+         end if;
+         if not Spawned then
+            Exit_Code := -1;
+         end if;
+      end Run_Devcert;
+
+      Env_Catalog : constant String := "/tmp/devcert-aunit-env.catalog";
+      CLI_Catalog : constant String := "/tmp/devcert-aunit-cli.catalog";
+      Code        : Integer := 0;
+      Output      : Unbounded_String;
    begin
       Ada.Environment_Variables.Set ("LANG", "de_DE.UTF-8");
       Ada.Environment_Variables.Set ("LC_MESSAGES", "fr_FR.UTF-8");
@@ -549,6 +584,46 @@ package body Devcert_Test_Suite.Core_Tests is
          /= 0,
          "JSON contract field names are not localized");
 
+      Devcert_Secure_Files.Atomic_Write
+        (Env_Catalog,
+         "default_locale = en" & ASCII.LF
+         & "en.app.name = ""env-devcert""" & ASCII.LF
+         & "en.cli.usage = ""env usage""" & ASCII.LF
+         & "en.cli.commands = ""env commands""" & ASCII.LF
+         & "en.cli.global_options = ""env options""" & ASCII.LF
+         & "en.cli.global_options_paths = ""env paths""" & ASCII.LF);
+      Devcert_Secure_Files.Atomic_Write
+        (CLI_Catalog,
+         "default_locale = en" & ASCII.LF
+         & "en.app.name = ""cli-devcert""" & ASCII.LF
+         & "en.cli.usage = ""cli usage""" & ASCII.LF
+         & "en.cli.commands = ""cli commands""" & ASCII.LF
+         & "en.cli.global_options = ""cli options""" & ASCII.LF
+         & "en.cli.global_options_paths = ""cli paths""" & ASCII.LF);
+
+      Ada.Environment_Variables.Set ("DEVCERT_CATALOG", Env_Catalog);
+      Run_Devcert ([new String'("--plain"), new String'("help")], Code, Output);
+      Assert (Code = Devcert_Exit_Codes.Success, "environment catalog help succeeds");
+      Assert
+        (Index (Output, "env-devcert") /= 0,
+         "DEVCERT_CATALOG controls devcert catalog resolution");
+
+      Run_Devcert
+        ([new String'("--catalog"),
+          new String'(CLI_Catalog),
+          new String'("--plain"),
+          new String'("help")],
+         Code,
+         Output);
+      Assert (Code = Devcert_Exit_Codes.Success, "CLI catalog help succeeds");
+      Assert
+        (Index (Output, "cli-devcert") /= 0,
+         "--catalog overrides DEVCERT_CATALOG");
+      Assert
+        (Index (Output, "env-devcert") = 0,
+         "environment catalog does not leak through CLI override");
+
+      Ada.Environment_Variables.Clear ("DEVCERT_CATALOG");
       Ada.Environment_Variables.Clear ("LANG");
    end Run_Test;
 
