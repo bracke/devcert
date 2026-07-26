@@ -1,11 +1,16 @@
 with Ada.Characters.Handling;
+with Ada.Containers.Indefinite_Vectors;
 with Ada.Command_Line;
 with Ada.Directories;
 with Ada.Exceptions;
+with Ada.Streams;
+with Ada.Streams.Stream_IO;
 with Ada.Strings;
 with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded;
 with Ada.Text_IO;
+
+with CryptoLib.Hashes;
 
 with Project_Tools.Alire_Manifests;
 with Project_Tools.Files;
@@ -18,6 +23,15 @@ procedure Devcert_Tools is
    use Ada.Text_IO;
    use Ada.Strings.Unbounded;
    use type Ada.Directories.File_Kind;
+   use type Ada.Streams.Stream_Element_Offset;
+
+   Check_Failed : exception;
+   Hex          : constant String := "0123456789abcdef";
+
+   package String_Vectors is new Ada.Containers.Indefinite_Vectors
+     (Index_Type   => Positive,
+      Element_Type => String);
+   package String_Sorting is new String_Vectors.Generic_Sorting;
 
    type Check_State is record
       Errors : Natural := 0;
@@ -61,6 +75,29 @@ procedure Devcert_Tools is
         and then Text (Text'First .. Text'First + Prefix'Length - 1) = Prefix;
    end Starts_With;
 
+   function Contains (Text : String; Pattern : String) return Boolean is
+   begin
+      return Ada.Strings.Fixed.Index (Text, Pattern) /= 0;
+   end Contains;
+
+   function Is_Blank_Or_Comment (Text : String) return Boolean is
+      Clean : constant String := Trim (Text);
+   begin
+      return Clean = "" or else Starts_With (Clean, "#");
+   end Is_Blank_Or_Comment;
+
+   function Is_Allowed
+     (Name    : String;
+      Allowed : Project_Tools.Alire_Manifests.String_List) return Boolean is
+   begin
+      for Item of Allowed loop
+         if Name = To_String (Item) then
+            return True;
+         end if;
+      end loop;
+      return False;
+   end Is_Allowed;
+
    function Strip_Pin_Blocks (Content : String) return String is
       Result       : Unbounded_String;
       Position     : Positive := Content'First;
@@ -99,6 +136,43 @@ procedure Devcert_Tools is
       end loop;
       return To_String (Result);
    end Strip_Pin_Blocks;
+
+   function Hex_Image (Digest : CryptoLib.Hashes.SHA256_Digest) return String is
+      Result : String (1 .. Digest'Length * 2);
+      Pos    : Positive := Result'First;
+   begin
+      for B of Digest loop
+         Result (Pos) := Hex (Natural (B) / 16 + 1);
+         Result (Pos + 1) := Hex (Natural (B) mod 16 + 1);
+         Pos := Pos + 2;
+      end loop;
+      return Result;
+   end Hex_Image;
+
+   function SHA256_Hex (Path : String) return String is
+      File    : Ada.Streams.Stream_IO.File_Type;
+      Context : CryptoLib.Hashes.SHA256_Context;
+      Buffer  : Ada.Streams.Stream_Element_Array (1 .. 32_768);
+      Last    : Ada.Streams.Stream_Element_Offset;
+   begin
+      CryptoLib.Hashes.Initialize_SHA256 (Context);
+      Ada.Streams.Stream_IO.Open
+        (File, Ada.Streams.Stream_IO.In_File, Path);
+      while not Ada.Streams.Stream_IO.End_Of_File (File) loop
+         Ada.Streams.Stream_IO.Read (File, Buffer, Last);
+         if Last >= Buffer'First then
+            CryptoLib.Hashes.Update (Context, Buffer (Buffer'First .. Last));
+         end if;
+      end loop;
+      Ada.Streams.Stream_IO.Close (File);
+      return Hex_Image (CryptoLib.Hashes.Finalize (Context));
+   exception
+      when others =>
+         if Ada.Streams.Stream_IO.Is_Open (File) then
+            Ada.Streams.Stream_IO.Close (File);
+         end if;
+         raise;
+   end SHA256_Hex;
 
    function Is_Source_File (Name : String) return Boolean is
       L : constant String := Lower (Name);
@@ -181,9 +255,100 @@ procedure Devcert_Tools is
            (Standard_Error,
             Label & " failed with" & Natural'Image (State.Errors) & " error(s)");
          Ada.Command_Line.Set_Exit_Status (Ada.Command_Line.Failure);
-         raise Program_Error;
+         raise Check_Failed;
       end if;
    end Require_Success;
+
+   procedure Require_Only_Dependencies
+     (State   : in out Check_State;
+      Path    : String;
+      Allowed : Project_Tools.Alire_Manifests.String_List;
+      Label   : String) is
+      File           : File_Type;
+      In_Dependency  : Boolean := False;
+      Dependency_Set : Boolean := False;
+
+      procedure Check_Dependency (Line : String) is
+         Clean : constant String := Trim (Line);
+         Equal : constant Natural := Ada.Strings.Fixed.Index (Clean, "=");
+         Name  : constant String :=
+           (if Equal = 0 then Clean else Trim (Clean (Clean'First .. Equal - 1)));
+      begin
+         if Name /= "gnat_native" and then not Is_Allowed (Name, Allowed) then
+            Fail (State, Path, Label & " has forbidden dependency " & Name);
+         end if;
+      end Check_Dependency;
+   begin
+      Open (File, In_File, Path);
+      while not End_Of_File (File) loop
+         declare
+            Line  : constant String := Get_Line (File);
+            Clean : constant String := Trim (Line);
+         begin
+            if Clean = "[[depends-on]]" then
+               In_Dependency := True;
+               Dependency_Set := False;
+            elsif Starts_With (Clean, "[[") then
+               In_Dependency := False;
+            elsif In_Dependency and then not Dependency_Set
+              and then not Is_Blank_Or_Comment (Clean)
+            then
+               Check_Dependency (Clean);
+               Dependency_Set := True;
+            end if;
+         end;
+      end loop;
+      Close (File);
+   exception
+      when E : others =>
+         if Is_Open (File) then
+            Close (File);
+         end if;
+         Fail (State, Path, Ada.Exceptions.Exception_Message (E));
+   end Require_Only_Dependencies;
+
+   procedure Require_No_Source_Tokens
+     (State  : in out Check_State;
+      Label  : String;
+      Tokens : Project_Tools.Files.Name_List) is
+
+      procedure Check_File (Path : String; Name : String) is
+         File        : File_Type;
+         Line_Number : Positive := 1;
+      begin
+         if Is_Source_File (Name) then
+            Open (File, In_File, Path);
+            while not End_Of_File (File) loop
+               declare
+                  Line : constant String := Get_Line (File);
+               begin
+                  for Token of Tokens loop
+                     if Contains (Lower (Line), To_String (Token)) then
+                        Fail
+                          (State,
+                           Path & ":" & Trim (Positive'Image (Line_Number)),
+                           Label & " contains forbidden token "
+                           & To_String (Token));
+                     end if;
+                  end loop;
+               end;
+               Line_Number := Line_Number + 1;
+            end loop;
+            Close (File);
+         end if;
+      exception
+         when E : others =>
+            if Is_Open (File) then
+               Close (File);
+            end if;
+            Fail (State, Path, Ada.Exceptions.Exception_Message (E));
+      end Check_File;
+   begin
+      Walk (Project_Root & "/src", Check_File'Access);
+      Walk (Project_Root & "/app", Check_File'Access);
+      Walk (Project_Root & "/devcert_tools/src", Check_File'Access);
+      Walk (Project_Root & "/devcert_tests/src", Check_File'Access);
+   end Require_No_Source_Tokens;
 
    procedure Run_Style_Check is
       State : Check_State;
@@ -193,7 +358,10 @@ procedure Devcert_Tools is
          Line_Number : Positive := 1;
       begin
          if Is_Source_File (Name) then
-            if Name /= "README.md" and then Name /= Lower (Name) then
+            if Name /= "README.md"
+              and then Name /= "CHANGELOG.md"
+              and then Name /= Lower (Name)
+            then
                Fail (State, Path, "file names must be lower case");
             end if;
 
@@ -246,6 +414,7 @@ procedure Devcert_Tools is
    procedure Run_Manifest_Check is
       use Project_Tools.Alire_Manifests;
       use Project_Tools.Files;
+      State : Check_State;
    begin
       Require_Contains (Project_Root & "/alire.toml", "name = ""devcert""",
                         "runtime manifest crate name");
@@ -255,9 +424,19 @@ procedure Devcert_Tools is
         (Project_Root & "/alire.toml",
          [To_Unbounded_String ("cryptolib"),
           To_Unbounded_String ("i18n"),
+          To_Unbounded_String ("messages"),
           To_Unbounded_String ("terminal_styles")]);
+      Require_Only_Dependencies
+        (State,
+         Project_Root & "/alire.toml",
+         [To_Unbounded_String ("cryptolib"),
+          To_Unbounded_String ("i18n"),
+          To_Unbounded_String ("messages"),
+          To_Unbounded_String ("terminal_styles")],
+         "runtime manifest");
       Require_Workspace_Pin (Project_Root & "/alire.toml", "cryptolib", "../cryptolib");
       Require_Workspace_Pin (Project_Root & "/alire.toml", "i18n", "../i18n");
+      Require_Workspace_Pin (Project_Root & "/alire.toml", "messages", "../messages");
       Require_Workspace_Pin
         (Project_Root & "/alire.toml", "terminal_styles", "../terminal_styles");
 
@@ -267,16 +446,38 @@ procedure Devcert_Tools is
          "tooling manifest crate name");
       Require_Release_Dependency
         (Project_Root & "/devcert_tools/alire.toml", "project_tools");
+      Require_Release_Dependency
+        (Project_Root & "/devcert_tools/alire.toml", "cryptolib");
+      Require_Only_Dependencies
+        (State,
+         Project_Root & "/devcert_tools/alire.toml",
+         [To_Unbounded_String ("project_tools"),
+          To_Unbounded_String ("cryptolib")],
+         "tooling manifest");
       Require_Workspace_Pin
         (Project_Root & "/devcert_tools/alire.toml",
          "project_tools",
          "../../project_tools");
+      Require_Workspace_Pin
+        (Project_Root & "/devcert_tools/alire.toml",
+         "cryptolib",
+         "../../cryptolib");
 
       Require_Contains
         (Project_Root & "/devcert_tests/alire.toml",
          "name = ""devcert_tests""",
          "test manifest crate name");
       Require_Release_Dependency (Project_Root & "/devcert_tests/alire.toml", "aunit");
+      Require_Release_Dependency (Project_Root & "/devcert_tests/alire.toml", "devcert");
+      Require_Only_Dependencies
+        (State,
+         Project_Root & "/devcert_tests/alire.toml",
+         [To_Unbounded_String ("aunit"),
+          To_Unbounded_String ("devcert")],
+         "test manifest");
+      Require_Workspace_Pin
+        (Project_Root & "/devcert_tests/alire.toml", "devcert", "..");
+      Require_Success (State, "manifest-check");
       Put_Line ("manifest-check passed");
    end Run_Manifest_Check;
 
@@ -310,6 +511,57 @@ procedure Devcert_Tools is
       Check_File ("devcert_tests/alire.toml");
       Require_Success (State, "release artifact manifest check");
    end Run_Release_Artifact_Manifest_Check;
+
+   function Relative_To (Root : String; Path : String) return String is
+      Prefix : constant String := Root & "/";
+   begin
+      if Starts_With (Path, Prefix) then
+         return Path (Path'First + Prefix'Length .. Path'Last);
+      else
+         return Path;
+      end if;
+   end Relative_To;
+
+   procedure Write_Release_Checksums (Target : String) is
+      Files : String_Vectors.Vector;
+
+      procedure Add_File (Path : String; Name : String) is
+         pragma Unreferenced (Name);
+         Relative : constant String := Relative_To (Target, Path);
+      begin
+         if Relative /= "SHA256SUMS" then
+            Files.Append (Relative);
+         end if;
+      end Add_File;
+
+      Output : Unbounded_String;
+   begin
+      Walk (Target, Add_File'Access);
+      String_Sorting.Sort (Files);
+
+      for Relative of Files loop
+         Append
+           (Output,
+            SHA256_Hex (Target & "/" & Relative) & "  " & Relative & ASCII.LF);
+      end loop;
+
+      Project_Tools.Files.Write_Text_File
+        (Target & "/SHA256SUMS", To_String (Output));
+   end Write_Release_Checksums;
+
+   procedure Run_Release_Checksum_Check (Target : String) is
+      State : Check_State;
+      Path  : constant String := Target & "/SHA256SUMS";
+   begin
+      if not Project_Tools.Files.File_Exists (Path) then
+         Fail (State, Path, "release checksum manifest is missing");
+      elsif not Project_Tools.Files.Line_Contains (Path, "  alire.toml") then
+         Fail (State, Path, "release checksum manifest does not cover alire.toml");
+      elsif Project_Tools.Files.Line_Contains (Path, "  SHA256SUMS") then
+         Fail (State, Path, "release checksum manifest must not cover itself");
+      end if;
+      Require_Success (State, "release checksum check");
+   end Run_Release_Checksum_Check;
 
    procedure Run_Tooling_Tests is
       State : Check_State;
@@ -372,16 +624,107 @@ procedure Devcert_Tools is
 
    procedure Run_Catalog_Check is
       State : Check_State;
-      Path  : constant String := Project_Root & "/config/messages/en.catalog";
+      Source_Path : constant String := Project_Root & "/config/messages/en.catalog";
+      Ship_Path   : constant String := Project_Root & "/share/devcert/messages.catalog";
+
+      procedure Validate_Catalog (Path : String) is
+         File                   : File_Type;
+         Line_Number            : Positive := 1;
+         Seen                   : Unbounded_String;
+         Default_Locale_Count   : Natural := 0;
+
+         procedure Fail_Line (Message : String) is
+         begin
+            Fail
+              (State,
+               Path & ":" & Trim (Positive'Image (Line_Number)),
+               Message);
+         end Fail_Line;
+
+         procedure Check_Braces (Value : String) is
+            Depth : Natural := 0;
+         begin
+            for Ch of Value loop
+               if Ch = '{' then
+                  Depth := Depth + 1;
+               elsif Ch = '}' then
+                  if Depth = 0 then
+                     Fail_Line ("malformed message parameter braces");
+                     return;
+                  end if;
+                  Depth := Depth - 1;
+               end if;
+            end loop;
+            if Depth /= 0 then
+               Fail_Line ("malformed message parameter braces");
+            end if;
+         end Check_Braces;
+      begin
+         Project_Tools.Files.Require_File (Path, "messages catalog");
+         Open (File, In_File, Path);
+         while not End_Of_File (File) loop
+            declare
+               Line  : constant String := Get_Line (File);
+               Clean : constant String := Trim (Line);
+               Equal : constant Natural := Ada.Strings.Fixed.Index (Clean, "=");
+            begin
+               if not Is_Blank_Or_Comment (Clean) then
+                  if Equal = 0 then
+                     Fail_Line ("malformed catalog entry");
+                  else
+                     declare
+                        Key   : constant String :=
+                          Trim (Clean (Clean'First .. Equal - 1));
+                        Value : constant String :=
+                          Trim (Clean (Equal + 1 .. Clean'Last));
+                        Mark  : constant String := ASCII.LF & Key & ASCII.LF;
+                     begin
+                        if Key = "" or else Value = "" then
+                           Fail_Line ("catalog keys and values must be non-empty");
+                        end if;
+                        if Contains (To_String (Seen), Mark) then
+                           Fail_Line ("duplicate message id " & Key);
+                        end if;
+                        Append (Seen, Mark);
+                        if Key = "default_locale" then
+                           Default_Locale_Count := Default_Locale_Count + 1;
+                        elsif not Starts_With (Key, "en.") then
+                           Fail_Line ("message id must be locale-qualified");
+                        end if;
+                        Check_Braces (Value);
+                     end;
+                  end if;
+               end if;
+            end;
+            Line_Number := Line_Number + 1;
+         end loop;
+         Close (File);
+
+         if Default_Locale_Count = 0 then
+            Fail (State, Path, "missing default_locale");
+         elsif Default_Locale_Count > 1 then
+            Fail (State, Path, "duplicate default_locale");
+         end if;
+      exception
+         when E : others =>
+            if Is_Open (File) then
+               Close (File);
+            end if;
+            Fail (State, Path, Ada.Exceptions.Exception_Message (E));
+      end Validate_Catalog;
 
       procedure Require_Id (Id : String) is
       begin
-         if not Project_Tools.Files.Line_Contains (Path, Id & "=") then
-            Fail (State, Path, "missing message id " & Id);
+         if not Project_Tools.Files.Line_Contains (Source_Path, "en." & Id & " =") then
+            Fail (State, Source_Path, "missing message id " & Id);
+         end if;
+         if not Project_Tools.Files.Line_Contains (Ship_Path, "en." & Id & " =") then
+            Fail (State, Ship_Path, "missing message id " & Id);
          end if;
       end Require_Id;
    begin
-      Project_Tools.Files.Require_File (Path, "default locale catalog");
+      Validate_Catalog (Source_Path);
+      Validate_Catalog (Ship_Path);
       Require_Id ("app.name");
       Require_Id ("cli.usage");
       Require_Id ("error.unknown_command");
@@ -395,6 +738,20 @@ procedure Devcert_Tools is
       use Project_Tools.Files;
       State    : Check_State;
       Entry_No : Natural := 0;
+
+      procedure Check_Repository_File (Path : String; Name : String) is
+         L : constant String := Lower (Name);
+      begin
+         if Name = "Makefile"
+           or else Project_Tools.Text.Ends_With (L, ".sh")
+           or else Project_Tools.Text.Ends_With (L, ".py")
+           or else Project_Tools.Text.Ends_With (L, ".js")
+           or else Project_Tools.Text.Ends_With (L, ".pl")
+           or else Project_Tools.Text.Ends_With (L, ".rb")
+         then
+            Fail (State, Path, "project tooling must be implemented in Ada");
+         end if;
+      end Check_Repository_File;
 
       procedure Check_Dir (Relative_Path : String) is
       begin
@@ -421,7 +778,16 @@ procedure Devcert_Tools is
       Check_Dir ("docs");
       Check_Dir ("devcert_tools/src");
       Check_Dir ("devcert_tests/src");
-      State.Errors := Entry_No;
+      Walk (Project_Root, Check_Repository_File'Access);
+      Require_No_Source_Tokens
+        (State,
+         "source quality gate",
+         [To_Unbounded_String ("to" & "do"),
+          To_Unbounded_String ("fix" & "me"),
+          To_Unbounded_String ("st" & "ub"),
+          To_Unbounded_String ("place" & "holder"),
+          To_Unbounded_String ("not " & "implemented")]);
+      State.Errors := State.Errors + Entry_No;
       Require_Success (State, "tree-check");
       Put_Line ("tree-check passed");
    end Run_Tree_Check;
@@ -433,6 +799,7 @@ procedure Devcert_Tools is
       end Require_Doc;
    begin
       Require_Doc ("README.md");
+      Require_Doc ("CHANGELOG.md");
       Require_Doc ("docs/installation.md");
       Require_Doc ("docs/cli.md");
       Require_Doc ("docs/coding_style.md");
@@ -440,9 +807,11 @@ procedure Devcert_Tools is
       Require_Doc ("docs/certificate_policies.md");
       Require_Doc ("docs/trust_stores.md");
       Require_Doc ("docs/cryptolib_contract.md");
+      Require_Doc ("docs/output.md");
       Require_Doc ("docs/localization.md");
       Require_Doc ("docs/json_contract.md");
       Require_Doc ("docs/security.md");
+      Require_Doc ("docs/testing.md");
       Require_Doc ("docs/release_process.md");
       Require_Doc ("docs/mkcert_parity.md");
       Require_Doc ("docs/final_acceptance.md");
@@ -450,11 +819,23 @@ procedure Devcert_Tools is
    end Run_Documentation_Check;
 
    procedure Run_Generated_Artifact_Check is
+      State : Check_State;
    begin
       Project_Tools.Release_Checks.Require_Text
         (Checks, "docs/mkcert_parity.md", "<!-- generated:devcert-parity -->");
       Project_Tools.Release_Checks.Require_Text
         (Checks, "docs/final_acceptance.md", "<!-- generated:devcert-acceptance -->");
+      if Project_Tools.Files.Read_Raw_File
+          (Project_Root & "/config/messages/en.catalog")
+        /= Project_Tools.Files.Read_Raw_File
+          (Project_Root & "/share/devcert/messages.catalog")
+      then
+         Fail
+           (State,
+            Project_Root & "/share/devcert/messages.catalog",
+            "shipped messages catalog is not current");
+      end if;
+      Require_Success (State, "generated-artifact-check");
       Put_Line ("generated-artifact-check passed");
    end Run_Generated_Artifact_Check;
 
@@ -468,20 +849,38 @@ procedure Devcert_Tools is
             Fail (State, Path, "missing parity row for " & Item);
          end if;
       end Require_Row;
+
+      procedure Reject_Cell (Value : String) is
+      begin
+         if Project_Tools.Files.Line_Contains (Path, "| " & Value & " |") then
+            Fail (State, Path, "parity matrix contains incomplete cell " & Value);
+         end if;
+      end Reject_Cell;
    begin
       Project_Tools.Files.Require_File (Path, "mkcert parity matrix");
+      Require_Row ("CA root resolution");
+      Require_Row ("CA creation");
+      Require_Row ("CAROOT reporting");
       Require_Row ("install local CA");
       Require_Row ("uninstall local CA");
       Require_Row ("issue localhost certificate");
+      Require_Row ("issue DNS SAN certificate");
+      Require_Row ("issue IP SAN certificate");
+      Require_Row ("custom certificate output paths");
+      Require_Row ("client certificate profile");
+      Require_Row ("S/MIME certificate profile");
       Require_Row ("sign CSR");
       Require_Row ("PKCS#12 bundle");
+      Require_Row ("Linux system trust");
       Require_Row ("NSS trust");
       Require_Row ("Java trust");
       Require_Row ("macOS trust");
       Require_Row ("Windows trust");
-      if Project_Tools.Files.Line_Contains (Path, "Planned") then
-         Fail (State, Path, "parity matrix still contains Planned entries");
-      end if;
+      Require_Row ("fingerprint-authoritative removal");
+      Require_Row ("JSON output");
+      Require_Row ("localized human output");
+      Reject_Cell ("Partial");
+      Reject_Cell ("No");
       Require_Success (State, "parity-check");
       Put_Line ("parity-check passed");
    end Run_Parity_Check;
@@ -536,6 +935,8 @@ procedure Devcert_Tools is
       Sanitize_Release_Manifest (Target & "/devcert_tools/alire.toml");
       Sanitize_Release_Manifest (Target & "/devcert_tests/alire.toml");
       Run_Release_Artifact_Manifest_Check (Target);
+      Write_Release_Checksums (Target);
+      Run_Release_Checksum_Check (Target);
       Put_Line ("dist staged at " & Target);
    end Run_Dist;
 
@@ -586,7 +987,7 @@ begin
       Ada.Command_Line.Set_Exit_Status (Ada.Command_Line.Failure);
    end if;
 exception
-   when Program_Error =>
+   when Check_Failed =>
       null;
    when E : others =>
       Put_Line

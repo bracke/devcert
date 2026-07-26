@@ -3,14 +3,31 @@
 Trust-store support is implemented through platform adapters with
 fingerprint-authoritative installation and removal.
 
+Trust stores are selected by logical store name. Supported logical names are:
+
+* `system`
+* `nss`
+* `java`
+
+Duplicate names are ignored after normalization and ordering remains
+deterministic. Platform aliases such as `linux`, `macos`, and `windows` map to
+the logical `system` store.
+
 Trust targets can be selected explicitly:
 
 ```text
-devcert install linux
+devcert install system
 devcert install java
-devcert install nss
+devcert install --trust-store system,nss,java
 devcert uninstall java
 ```
+
+`DEVCERT_TRUST_STORES` accepts the same comma-separated store syntax. Commands
+that affect multiple stores report every selected store. Mixed success returns
+the stable partial-success exit code.
+
+Stable trust-store states include `unsupported`, `available`, `installed`,
+`not-installed`, `tool-missing`, `permission-required`, `partial`, and `error`.
 
 ## Linux
 
@@ -21,15 +38,23 @@ certificate file below `/usr/local/share/ca-certificates/` and runs
 file and reruns the update command. Privilege escalation is expected when
 writing to system trust locations.
 
+For deterministic integration tests, `DEVCERT_LINUX_TRUST_DIR` selects an
+isolated anchor directory backend. In that mode devcert stages
+`devcert-<fingerprint>.crt` below the configured directory, performs no system
+refresh command, and still refuses removal unless the staged public certificate
+matches the active root certificate.
+
 ## macOS
 
 The adapter uses the system keychain trust model and removes only certificates
-matching the configured devcert CA fingerprint.
+matching the configured devcert CA fingerprint. The command adapter uses
+structured arguments and does not invoke shell pipelines.
 
 ## Windows
 
 The adapter uses the Windows certificate store and removes only matching
-fingerprints.
+fingerprints. The command adapter uses structured arguments and does not invoke
+shell pipelines.
 
 ## Java
 
@@ -47,6 +72,13 @@ The Java adapter has been smoke-tested against a temporary keystore using
 NSS trust stores are updated with `certutil`. Set `DEVCERT_NSS_DB` to a specific
 NSS database directory; otherwise devcert tries `$HOME/.pki/nssdb`. The adapter
 uses SQL database syntax and fingerprint-derived aliases.
+
+Removal is fingerprint-authoritative. Linux file-based backends compare the
+stored public certificate with the active CA certificate before deleting a
+fingerprint-derived file. Java and NSS adapters read the alias target back from
+the store and compare the stored public certificate before deleting the alias.
+macOS and Windows deletion commands are invoked with the normalized certificate
+fingerprint rather than with a subject or nickname.
 
 ## macOS and Windows
 

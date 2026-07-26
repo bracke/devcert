@@ -22,7 +22,7 @@ Trust stores:
 
 Output:
 
-* human-readable text is localized
+* human-readable text is localized through `messages`, backed by `i18n`
 * terminal styling uses `terminal_styles`
 * JSON output is deterministic and schema versioned
 
@@ -40,6 +40,7 @@ Tooling:
 
 * repository tooling is Ada-only and located in `devcert_tools`
 * reusable mechanics are delegated to `project_tools`
+* release checksums are generated through `cryptolib`
 
 Documentation:
 

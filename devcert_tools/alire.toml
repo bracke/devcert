@@ -9,8 +9,14 @@ gnat_native = "=15.2.1"
 [[depends-on]]
 project_tools = "*"
 
+[[depends-on]]
+cryptolib = "*"
+
 [[pins]]
 project_tools = { path = "../../project_tools" }
+
+[[pins]]
+cryptolib = { path = "../../cryptolib" }
 
 [build-profiles]
 "*" = "development"

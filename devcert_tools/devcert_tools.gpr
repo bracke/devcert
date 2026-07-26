@@ -1,5 +1,6 @@
 with "config/devcert_tools_config.gpr";
 with "../../project_tools/project_tools.gpr";
+with "../../cryptolib/cryptolib.gpr";
 
 project Devcert_Tools is
    for Source_Dirs use ("src", "config");

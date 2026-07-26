@@ -20,7 +20,9 @@ package body Devcert_Messages is
    --  directory with a build-tree fallback.
    function Catalog_Path return String is
    begin
-      if Ada.Directories.Exists ("share/devcert/messages.catalog") then
+      if Ada.Environment_Variables.Exists ("DEVCERT_CATALOG") then
+         return Ada.Environment_Variables.Value ("DEVCERT_CATALOG");
+      elsif Ada.Directories.Exists ("share/devcert/messages.catalog") then
          return "share/devcert/messages.catalog";
       elsif Ada.Directories.Exists ("../share/devcert/messages.catalog") then
          return "../share/devcert/messages.catalog";
@@ -38,7 +40,8 @@ package body Devcert_Messages is
          else "");
 
       Raw  : constant String :=
-        (if Env ("LC_ALL") /= "" then Env ("LC_ALL")
+        (if Env ("DEVCERT_LOCALE") /= "" then Env ("DEVCERT_LOCALE")
+         elsif Env ("LC_ALL") /= "" then Env ("LC_ALL")
          elsif Env ("LC_MESSAGES") /= "" then Env ("LC_MESSAGES")
          else Env ("LANG"));
       Last : Natural := Raw'First - 1;
@@ -96,6 +99,44 @@ package body Devcert_Messages is
       else
          return "message." & Id;
       end if;
+   end Text;
+
+   function Text
+     (Id    : String;
+      Value : String) return String
+   is
+      use type Standard.Messages.Result.Render_Status;
+      Args : Standard.Messages.Arguments.Arguments;
+   begin
+      Ensure_Initialized;
+      Standard.Messages.Arguments.Set (Args, "value", Value);
+
+      declare
+         Result : constant Standard.Messages.Result.Render_Result :=
+           Standard.Messages.Runtime.Render
+             (Item      => Runtime,
+              Locale    => To_String (Locale),
+              Key       => Id,
+              Arguments => Args);
+      begin
+         if Result.Status = Standard.Messages.Result.Success then
+            return Standard.Messages.Result.Output_Text (Result.Text);
+         end if;
+      end;
+
+      declare
+         Template : constant String := Text (Id);
+         Marker   : constant String := "{value}";
+         Start    : constant Natural := Ada.Strings.Fixed.Index (Template, Marker);
+      begin
+         if Start = 0 then
+            return Template & Value;
+         else
+            return Template (Template'First .. Start - 1)
+              & Value
+              & Template (Start + Marker'Length .. Template'Last);
+         end if;
+      end;
    end Text;
 
 end Devcert_Messages;

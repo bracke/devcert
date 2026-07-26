@@ -9,6 +9,7 @@ with Devcert_State;
 package body Devcert_Crypto is
    use type Ada.Streams.Stream_Element_Offset;
    use Ada.Strings.Unbounded;
+   use type Devcert.Certificate_Requests.Certificate_Mode;
    use type CryptoLib.Certificates.Certificate_Status;
 
    Hex : constant String := "0123456789abcdef";
@@ -70,13 +71,33 @@ package body Devcert_Crypto is
       Certificate_PEM : out Unbounded_String;
       Private_Key_PEM : out Unbounded_String) return Operation_Status
    is
+      Request : Devcert.Certificate_Requests.Request :=
+        Devcert.Certificate_Requests.Empty;
+      Status  : constant Devcert.Certificate_Requests.Request_Status :=
+        Devcert.Certificate_Requests.Add_Identity (Request, Name);
+      use type Devcert.Certificate_Requests.Request_Status;
+   begin
+      if Status /= Devcert.Certificate_Requests.Valid then
+         Certificate_PEM := Null_Unbounded_String;
+         Private_Key_PEM := Null_Unbounded_String;
+         return Invalid_Request;
+      end if;
+      return Issue_Certificate (Request, Certificate_PEM, Private_Key_PEM);
+   end Issue_Certificate;
+
+   function Issue_Certificate
+     (Request         : Devcert.Certificate_Requests.Request;
+      Certificate_PEM : out Unbounded_String;
+      Private_Key_PEM : out Unbounded_String) return Operation_Status
+   is
    begin
       if not Devcert_Secure_Files.Exists (Devcert_State.CA_Certificate_Path)
         or else not Devcert_Secure_Files.Exists (Devcert_State.CA_Private_Key_Path)
+        or else Request.Count = 0
       then
          Certificate_PEM := Null_Unbounded_String;
          Private_Key_PEM := Null_Unbounded_String;
-         return Unsupported;
+         return Invalid_Request;
       end if;
 
       declare
@@ -84,20 +105,56 @@ package body Devcert_Crypto is
            Devcert_Secure_Files.Read (Devcert_State.CA_Certificate_Path);
          CA_Key  : constant String :=
            Devcert_Secure_Files.Read (Devcert_State.CA_Private_Key_Path);
-         Status  : constant CryptoLib.Certificates.Certificate_Status :=
-           CryptoLib.Certificates.Issue_Server_Certificate
-             (CA_Cert,
-              CA_Key,
-              Name,
-              [1 => To_Unbounded_String (Name)],
-              Certificate_PEM,
-              Private_Key_PEM);
+         Names   : CryptoLib.Certificates.Subject_Alternative_Name_List
+           (1 .. Request.Count);
       begin
-         if Status = CryptoLib.Certificates.Ok then
-            return Ok;
-         else
-            return Unsupported;
-         end if;
+         for I in 1 .. Request.Count loop
+            Names (I) := Request.Identities (I).Value;
+         end loop;
+
+         declare
+            Status : CryptoLib.Certificates.Certificate_Status;
+         begin
+            case Request.Mode is
+               when Devcert.Certificate_Requests.Server =>
+                  Status :=
+                    CryptoLib.Certificates.Issue_Server_Certificate
+                      (CA_Cert,
+                       CA_Key,
+                       Devcert.Certificate_Requests.Common_Name (Request),
+                       Names,
+                       Certificate_PEM,
+                       Private_Key_PEM);
+               when Devcert.Certificate_Requests.Client =>
+                  Status :=
+                    CryptoLib.Certificates.Issue_Client_Certificate
+                      (CA_Cert,
+                       CA_Key,
+                       Devcert.Certificate_Requests.Common_Name (Request),
+                       Names,
+                       Certificate_PEM,
+                       Private_Key_PEM);
+               when Devcert.Certificate_Requests.Email =>
+                  Status :=
+                    CryptoLib.Certificates.Issue_Email_Certificate
+                      (CA_Cert,
+                       CA_Key,
+                       Devcert.Certificate_Requests.Common_Name (Request),
+                       Names,
+                       Certificate_PEM,
+                       Private_Key_PEM);
+            end case;
+
+            if Status = CryptoLib.Certificates.Ok then
+               return Ok;
+            elsif Status = CryptoLib.Certificates.Invalid_Input then
+               return Invalid_Request;
+            elsif Status = CryptoLib.Certificates.Unsupported_Profile then
+               return Unsupported_Profile;
+            else
+               return Unsupported;
+            end if;
+         end;
       end;
    end Issue_Certificate;
 
@@ -124,6 +181,10 @@ package body Devcert_Crypto is
       begin
          if Status = CryptoLib.Certificates.Ok then
             return Ok;
+         elsif Status = CryptoLib.Certificates.Invalid_Input then
+            return Invalid_Request;
+         elsif Status = CryptoLib.Certificates.Unsupported_Profile then
+            return Unsupported_Profile;
          else
             return Unsupported;
          end if;
@@ -135,11 +196,20 @@ package body Devcert_Crypto is
       Bundle_Data : out Unbounded_String) return Operation_Status
    is
    begin
+      return Generate_PKCS12 (Name, "", Bundle_Data);
+   end Generate_PKCS12;
+
+   function Generate_PKCS12
+     (Name        : String;
+      Password    : String;
+      Bundle_Data : out Unbounded_String) return Operation_Status
+   is
+   begin
       if not Devcert_Secure_Files.Exists (Devcert_State.Leaf_Certificate_Path (Name))
         or else not Devcert_Secure_Files.Exists (Devcert_State.Leaf_Private_Key_Path (Name))
       then
          Bundle_Data := Null_Unbounded_String;
-         return Unsupported;
+         return Invalid_Request;
       end if;
 
       declare
@@ -149,13 +219,39 @@ package body Devcert_Crypto is
            Devcert_Secure_Files.Read (Devcert_State.Leaf_Private_Key_Path (Name));
          Status : constant CryptoLib.Certificates.Certificate_Status :=
            CryptoLib.Certificates.Generate_PKCS12
-             (Cert, Key, Name, "", Bundle_Data);
+             (Cert, Key, Name, Password, Bundle_Data);
       begin
          if Status = CryptoLib.Certificates.Ok then
             return Ok;
+         elsif Status = CryptoLib.Certificates.Invalid_Input then
+            return Invalid_Request;
+         elsif Status = CryptoLib.Certificates.Unsupported_Profile then
+            return Unsupported_Profile;
          else
             return Unsupported;
          end if;
       end;
+   end Generate_PKCS12;
+
+   function Generate_PKCS12
+     (Certificate_PEM : String;
+      Private_Key_PEM : String;
+      Name            : String;
+      Password        : String;
+      Bundle_Data     : out Unbounded_String) return Operation_Status
+   is
+      Status : constant CryptoLib.Certificates.Certificate_Status :=
+        CryptoLib.Certificates.Generate_PKCS12
+          (Certificate_PEM, Private_Key_PEM, Name, Password, Bundle_Data);
+   begin
+      if Status = CryptoLib.Certificates.Ok then
+         return Ok;
+      elsif Status = CryptoLib.Certificates.Invalid_Input then
+         return Invalid_Request;
+      elsif Status = CryptoLib.Certificates.Unsupported_Profile then
+         return Unsupported_Profile;
+      else
+         return Unsupported;
+      end if;
    end Generate_PKCS12;
 end Devcert_Crypto;

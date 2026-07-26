@@ -33,9 +33,9 @@ package body Devcert_JSON is
 
    function Error (Command : String; Message : String) return String is
    begin
-      return "{""schema"":"
+      return "{""schema_version"":"
         & Devcert_Core.Json_Schema_Version
-        & ",""ok"":false,""command"":"""
+        & ",""status"":""error"",""command"":"""
         & Escape (Command)
         & """,""error"":"""
         & Escape (Message)
@@ -44,9 +44,9 @@ package body Devcert_JSON is
 
    function Status (Command : String; Message : String) return String is
    begin
-      return "{""schema"":"
+      return "{""schema_version"":"
         & Devcert_Core.Json_Schema_Version
-        & ",""ok"":true,""command"":"""
+        & ",""status"":""success"",""command"":"""
         & Escape (Command)
         & """,""message"":"""
         & Escape (Message)
@@ -58,9 +58,9 @@ package body Devcert_JSON is
       Name    : String;
       Value   : String) return String is
    begin
-      return "{""schema"":"
+      return "{""schema_version"":"
         & Devcert_Core.Json_Schema_Version
-        & ",""ok"":true,""command"":"""
+        & ",""status"":""success"",""command"":"""
         & Escape (Command)
         & ""","""
         & Escape (Name)

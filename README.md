@@ -18,14 +18,14 @@ The executable is written to `bin/devcert`.
 
 ```text
 bin/devcert --help
-bin/devcert --version
-bin/devcert --json
+bin/devcert version
+bin/devcert --json version
 ```
 
 ## Common Commands
 
-Runtime command groups are `ca`, `issue`, `sign-csr`, `pkcs12`, `install`,
-`uninstall`, and `inspect`.
+Runtime command groups are `help`, `version`, `install`, `uninstall`,
+`caroot`, `cert`, `inspect`, and `doctor`.
 
 Repository checks are provided by the Ada tooling crate:
 
@@ -52,9 +52,11 @@ Detailed documentation:
 * [Certificate policies](docs/certificate_policies.md)
 * [Trust-store architecture](docs/trust_stores.md)
 * [cryptolib contract](docs/cryptolib_contract.md)
+* [Output](docs/output.md)
 * [Localization](docs/localization.md)
 * [JSON contract](docs/json_contract.md)
 * [Security model](docs/security.md)
+* [Testing](docs/testing.md)
 * [Release process](docs/release_process.md)
 * [mkcert parity](docs/mkcert_parity.md)
 * [Final acceptance](docs/final_acceptance.md)

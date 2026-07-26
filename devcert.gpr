@@ -8,7 +8,7 @@ project Devcert is
    for Source_Dirs use ("src", "app", "config");
    for Object_Dir use "obj/" & Devcert_Config.Build_Profile;
    for Exec_Dir use "bin";
-   for Main use ("devcert.adb");
+   for Main use ("main.adb");
    for Create_Missing_Dirs use "True";
 
    package Compiler is
@@ -16,6 +16,10 @@ project Devcert is
         Devcert_Config.Ada_Compiler_Switches
         & ("-gnat2022", "-gnatwa", "-gnatwe", "-gnatyM100");
    end Compiler;
+
+   package Builder is
+      for Executable ("main.adb") use "devcert";
+   end Builder;
 
    --  Ship share/ (the message catalog and the bundled i18n locale data) so a
    --  deployed devcert renders localized output.

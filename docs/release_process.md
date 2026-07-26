@@ -29,4 +29,6 @@ project-specific release mechanics such as manifest pin stripping and staged
 manifest validation.
 
 Release artifacts are staged below `dist/` and exclude local build products and
-local Alire state.
+local Alire state. `dist` writes a deterministic `SHA256SUMS` manifest for the
+staged source tree. Checksum generation is implemented in Ada and uses
+`cryptolib`.

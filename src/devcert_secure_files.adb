@@ -7,6 +7,44 @@ with GNAT.OS_Lib;
 
 package body Devcert_Secure_Files is
    use type Ada.Streams.Stream_Element_Offset;
+   use type GNAT.OS_Lib.String_Access;
+
+   function Locate (Name : String) return String is
+      Found : GNAT.OS_Lib.String_Access := GNAT.OS_Lib.Locate_Exec_On_Path (Name);
+   begin
+      if Found = null then
+         return "";
+      else
+         declare
+            Result : constant String := Found.all;
+         begin
+            GNAT.OS_Lib.Free (Found);
+            return Result;
+         end;
+      end if;
+   end Locate;
+
+   procedure Set_Permissions (Path : String; Mode : String) is
+      Chmod   : constant String := Locate ("chmod");
+      Success : Boolean := False;
+   begin
+      if Chmod /= "" then
+         GNAT.OS_Lib.Spawn
+           (Chmod, [new String'(Mode), new String'(Path)], Success);
+      end if;
+   end Set_Permissions;
+
+   procedure Ensure_Directory
+     (Path : String;
+      Mode : String := "700") is
+   begin
+      if Path /= "" and then not Ada.Directories.Exists (Path) then
+         Ada.Directories.Create_Path (Path);
+      end if;
+      if Path /= "" then
+         Set_Permissions (Path, Mode);
+      end if;
+   end Ensure_Directory;
 
    function Exists (Path : String) return Boolean is
    begin
@@ -35,6 +73,44 @@ package body Devcert_Secure_Files is
       return Result (1 .. Last);
    end Read;
 
+   function Permissions (Path : String) return String is
+      Stat        : constant String := Locate ("stat");
+      Output_File : constant String := Path & ".mode";
+      Spawned     : Boolean := False;
+      Return_Code : Integer := 1;
+   begin
+      if Stat = "" or else not Ada.Directories.Exists (Path) then
+         return "";
+      end if;
+
+      GNAT.OS_Lib.Spawn
+        (Stat,
+         [new String'("-c"), new String'("%a"), new String'(Path)],
+         Output_File,
+         Spawned,
+         Return_Code,
+         Err_To_Out => True);
+      if Spawned and then Return_Code = 0 and then Ada.Directories.Exists (Output_File) then
+         declare
+            Result : constant String := Read (Output_File);
+         begin
+            Ada.Directories.Delete_File (Output_File);
+            return Result;
+         end;
+      end if;
+
+      if Ada.Directories.Exists (Output_File) then
+         Ada.Directories.Delete_File (Output_File);
+      end if;
+      return "";
+   end Permissions;
+
+   function Has_Permissions (Path : String; Mode : String) return Boolean is
+      Actual : constant String := Permissions (Path);
+   begin
+      return Actual = "" or else Actual = Mode;
+   end Has_Permissions;
+
    procedure Atomic_Write
      (Path    : String;
       Content : String;
@@ -42,24 +118,20 @@ package body Devcert_Secure_Files is
       File     : Ada.Text_IO.File_Type;
       Temp     : constant String := Path & ".tmp";
       Dir_Name : constant String := Ada.Directories.Containing_Directory (Path);
-      Success  : Boolean;
    begin
       if Dir_Name /= "" and then not Ada.Directories.Exists (Dir_Name) then
-         Ada.Directories.Create_Path (Dir_Name);
+         Ensure_Directory (Dir_Name, "700");
       end if;
 
       Ada.Text_IO.Create (File, Ada.Text_IO.Out_File, Temp);
       Ada.Text_IO.Put (File, Content);
       Ada.Text_IO.Close (File);
 
-      if Secret then
-         GNAT.OS_Lib.Spawn
-           ("/bin/chmod", [new String'("600"), new String'(Temp)], Success);
-      else
-         GNAT.OS_Lib.Spawn
-           ("/bin/chmod", [new String'("644"), new String'(Temp)], Success);
-      end if;
+      Set_Permissions (Temp, (if Secret then "600" else "644"));
 
+      if Ada.Directories.Exists (Path) then
+         Ada.Directories.Delete_File (Path);
+      end if;
       Ada.Directories.Rename (Temp, Path);
    exception
       when others =>
@@ -82,10 +154,9 @@ package body Devcert_Secure_Files is
       Data     : Ada.Streams.Stream_Element_Array
         (1 .. Ada.Streams.Stream_Element_Offset (Content'Length));
       Pos      : Ada.Streams.Stream_Element_Offset := Data'First;
-      Success  : Boolean;
    begin
       if Dir_Name /= "" and then not Ada.Directories.Exists (Dir_Name) then
-         Ada.Directories.Create_Path (Dir_Name);
+         Ensure_Directory (Dir_Name, "700");
       end if;
 
       for C of Content loop
@@ -97,14 +168,11 @@ package body Devcert_Secure_Files is
       Ada.Streams.Stream_IO.Write (File, Data);
       Ada.Streams.Stream_IO.Close (File);
 
-      if Secret then
-         GNAT.OS_Lib.Spawn
-           ("/bin/chmod", [new String'("600"), new String'(Temp)], Success);
-      else
-         GNAT.OS_Lib.Spawn
-           ("/bin/chmod", [new String'("644"), new String'(Temp)], Success);
-      end if;
+      Set_Permissions (Temp, (if Secret then "600" else "644"));
 
+      if Ada.Directories.Exists (Path) then
+         Ada.Directories.Delete_File (Path);
+      end if;
       Ada.Directories.Rename (Temp, Path);
    exception
       when others =>
