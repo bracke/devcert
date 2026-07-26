@@ -1,0 +1,64 @@
+name: ci
+
+# Builds devcert and runs its test suite on Linux.
+#
+# devcert pins sibling crates by local path in alire.toml (cryptolib, i18n,
+# messages, terminal_styles). Building i18n runs its pre-build regeneration,
+# which builds the cldr tools (httpclient, zlib, project_tools, cryptolib) and
+# fetches the CLDR/UCD data. All of those siblings are checked out next to the
+# repo. They must exist as fetchable GitHub repos under the same owner.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: build and test (ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: devcert }
+      - uses: actions/checkout@v4
+        with: { repository: "${{ github.repository_owner }}/project_tools", path: project_tools }
+      - uses: actions/checkout@v4
+        with: { repository: "${{ github.repository_owner }}/httpclient", path: httpclient }
+      - uses: actions/checkout@v4
+        with: { repository: "${{ github.repository_owner }}/zlib", path: zlib }
+      - uses: actions/checkout@v4
+        with: { repository: "${{ github.repository_owner }}/cryptolib", path: cryptolib }
+      - uses: actions/checkout@v4
+        with: { repository: "${{ github.repository_owner }}/regexp", path: regexp }
+      - uses: actions/checkout@v4
+        with: { repository: "${{ github.repository_owner }}/i18n", path: i18n }
+      - uses: actions/checkout@v4
+        with: { repository: "${{ github.repository_owner }}/messages", path: messages }
+      - uses: actions/checkout@v4
+        with: { repository: "${{ github.repository_owner }}/terminal_styles", path: terminal_styles }
+
+      - name: Set up Alire
+        uses: alire-project/setup-alire@v5
+        with:
+          toolchain: gnat_native=15.2.1 gprbuild
+
+      - name: Install OpenSSL headers
+        # i18n's CLDR data fetch (httpclient) and cryptolib link against OpenSSL.
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev
+
+      - name: Build devcert
+        # Regenerates the i18n data and bundles it into share/i18n (post-build).
+        working-directory: devcert
+        run: alr --non-interactive build
+
+      - name: Verify the i18n locale data was bundled
+        working-directory: devcert
+        run: test -f share/i18n/formats.i18ndata
+
+      - name: Build the devcert test suite
+        working-directory: devcert/devcert_tests
+        run: alr --non-interactive build
+
+      - name: Run the devcert test suite
+        working-directory: devcert/devcert_tests
+        run: alr exec -- ./bin/devcert_tests
