@@ -2,17 +2,69 @@
 
 This map records the public devcert surface covered by the AUnit suite.
 
-| Area | Public Packages | Current Coverage |
-| --- | --- | --- |
-| CLI and dispatch | `Devcert.CLI`, `Devcert.Commands*` | executable parser errors, no-mutation failures, cert workflow, install workflow |
-| Context and results | `Devcert.Context`, `Devcert.Results`, `Devcert.Errors` | architecture surface and stable status checks |
-| CA lifecycle | `Devcert.CA_Store`, `Devcert_State`, `Devcert.Locks` | missing, incomplete, invalid metadata/material, key mismatch, permissions, writer lock |
-| Certificate policy | `Devcert.Certificate_Requests`, `Devcert.Certificate_Policies`, `Devcert.Identities` | DNS, IP, email, duplicates, limits, output names, profile selection |
-| Crypto adapter | `Devcert_Crypto` | CA creation, issuance, CSR error mapping, PKCS#12, key/certificate match |
-| Trust stores | `Devcert_Trust_Stores`, `Devcert.Trust_Stores*` | selection, aliases, aggregate states, isolated Linux mutation |
-| Output | `Devcert.Output*`, `Devcert_JSON` | JSON schema, escaping, field stability, plain/terminal routing, ANSI exclusion |
-| Localization | `Devcert_Messages`, `Devcert.Locale` | required IDs, locale precedence, catalog precedence, malformed catalog fallback |
-| Filesystem safety | `Devcert_Secure_Files` | atomic text/raw writes, overwrite behavior, permissions, temp cleanup |
+## CLI And Dispatch
+
+Packages: `Devcert.CLI`, `Devcert.Commands*`.
+
+Coverage: executable parser errors, no-mutation failures, certificate workflow,
+and install workflow.
+
+## Context And Results
+
+Packages: `Devcert.Context`, `Devcert.Results`, `Devcert.Errors`.
+
+Coverage: architecture surface and stable status checks.
+
+## CA Lifecycle
+
+Packages: `Devcert.CA_Store`, `Devcert_State`, `Devcert.Locks`.
+
+Coverage: missing, incomplete, invalid metadata/material, key mismatch,
+permissions, and writer locking.
+
+## Certificate Policy
+
+Packages: `Devcert.Certificate_Requests`, `Devcert.Certificate_Policies`,
+`Devcert.Identities`.
+
+Coverage: DNS, IP, email, duplicates, limits, output names, and profile
+selection.
+
+## Crypto Adapter
+
+Package: `Devcert_Crypto`.
+
+Coverage: CA creation, issuance, CSR error mapping, PKCS#12, and
+key/certificate matching.
+
+## Trust Stores
+
+Packages: `Devcert_Trust_Stores`, `Devcert.Trust_Stores*`.
+
+Coverage: selection, aliases, aggregate states, and isolated Linux mutation.
+
+## Output
+
+Packages: `Devcert.Output*`, `Devcert_JSON`.
+
+Coverage: JSON schema, escaping, field stability, plain/terminal routing, and
+ANSI exclusion.
+
+## Localization
+
+Packages: `Devcert_Messages`, `Devcert.Locale`.
+
+Coverage: required IDs, locale precedence, catalog precedence, and malformed
+catalog fallback.
+
+## Filesystem Safety
+
+Package: `Devcert_Secure_Files`.
+
+Coverage: atomic text/raw writes, overwrite behavior, permissions, and temp
+cleanup.
+
+## External Platform Coverage
 
 Remaining coverage requiring external environments:
 

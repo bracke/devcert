@@ -33,8 +33,10 @@ backends where available.
 Use a disposable NSS SQL database:
 
 ```text
-DEVCERT_NSS_DB=/tmp/devcert-nssdb devcert --ca-root /tmp/devcert-platform-nss install --trust-store nss
-DEVCERT_NSS_DB=/tmp/devcert-nssdb devcert --ca-root /tmp/devcert-platform-nss uninstall --trust-store nss
+DEVCERT_NSS_DB=/tmp/devcert-nssdb \
+  devcert --ca-root /tmp/devcert-platform-nss install --trust-store nss
+DEVCERT_NSS_DB=/tmp/devcert-nssdb \
+  devcert --ca-root /tmp/devcert-platform-nss uninstall --trust-store nss
 ```
 
 Verify the fingerprint with `certutil -L -d sql:/tmp/devcert-nssdb -a`.
@@ -44,8 +46,10 @@ Verify the fingerprint with `certutil -L -d sql:/tmp/devcert-nssdb -a`.
 Use a temporary keystore:
 
 ```text
-DEVCERT_JAVA_KEYSTORE=/tmp/devcert-cacerts devcert --ca-root /tmp/devcert-platform-java install --trust-store java
-DEVCERT_JAVA_KEYSTORE=/tmp/devcert-cacerts devcert --ca-root /tmp/devcert-platform-java uninstall --trust-store java
+DEVCERT_JAVA_KEYSTORE=/tmp/devcert-cacerts \
+  devcert --ca-root /tmp/devcert-platform-java install --trust-store java
+DEVCERT_JAVA_KEYSTORE=/tmp/devcert-cacerts \
+  devcert --ca-root /tmp/devcert-platform-java uninstall --trust-store java
 ```
 
 Verify with `keytool -list -rfc`.
