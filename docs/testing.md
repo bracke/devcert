@@ -21,7 +21,7 @@ by automated tests include:
 * trust-store target parsing, logical selection policy, fingerprint-derived
   aliases, aggregate edge states, and isolated Linux trust-store mutation
 * devcert localization policy, required catalog identifiers, locale/catalog
-  precedence, and JSON stability
+  precedence, malformed catalog fallback, and JSON stability
 * security output invariants
 * deterministic clock behavior
 

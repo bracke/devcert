@@ -550,6 +550,7 @@ package body Devcert_Test_Suite.Core_Tests is
 
       Env_Catalog : constant String := "/tmp/devcert-aunit-env.catalog";
       CLI_Catalog : constant String := "/tmp/devcert-aunit-cli.catalog";
+      Bad_Catalog : constant String := "/tmp/devcert-aunit-bad.catalog";
       Code        : Integer := 0;
       Output      : Unbounded_String;
    begin
@@ -684,6 +685,23 @@ package body Devcert_Test_Suite.Core_Tests is
       Assert
         (Index (Output, "env-devcert") = 0,
          "environment catalog does not leak through CLI override");
+
+      Devcert_Secure_Files.Atomic_Write
+        (Bad_Catalog, "this is not a valid message catalog" & ASCII.LF);
+      Run_Devcert
+        ([new String'("--catalog"),
+          new String'(Bad_Catalog),
+          new String'("--plain"),
+          new String'("help")],
+         Code,
+         Output);
+      Assert
+        (Code = Devcert_Exit_Codes.Success,
+         "malformed catalog still permits emergency diagnostics");
+      Assert
+        (Index (Output, "app.name") /= 0
+         and then Index (Output, "cli.usage") /= 0,
+         "malformed catalog falls back to stable message identifiers");
 
       Ada.Environment_Variables.Clear ("DEVCERT_CATALOG");
       Ada.Environment_Variables.Clear ("LANG");
