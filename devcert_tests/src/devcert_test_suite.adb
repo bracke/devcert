@@ -19,6 +19,7 @@ package body Devcert_Test_Suite is
       Result.Add_Test (new Core_Tests.Fingerprint_Test);
       Result.Add_Test (new Core_Tests.State_Path_Test);
       Result.Add_Test (new Core_Tests.Clock_Test);
+      Result.Add_Test (new Core_Tests.Lock_Test);
       Result.Add_Test (new Core_Tests.CA_Lifecycle_Test);
       Result.Add_Test (new Core_Tests.CA_Invalid_Material_Test);
       Result.Add_Test (new Core_Tests.Secure_File_Test);

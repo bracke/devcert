@@ -2,6 +2,7 @@ with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded;
 
 with Devcert.Clock;
+with Devcert.Locks;
 with Devcert_Crypto;
 with Devcert_Secure_Files;
 
@@ -120,8 +121,15 @@ package body Devcert.CA_Store is
    function Create return CA_State is
       Certificate : Unbounded_String;
       Private_Key : Unbounded_String;
+      Lock_Path   : constant String := Root & "/.devcert-create.lock";
+      use type Devcert.Locks.Lock_Result;
    begin
+      if Devcert.Locks.Acquire (Lock_Path) /= Devcert.Locks.Acquired then
+         return Incomplete;
+      end if;
+
       if Devcert_Crypto.Create_CA (Certificate, Private_Key) /= Devcert_Crypto.Ok then
+         Devcert.Locks.Release (Lock_Path);
          return Unsupported_Format;
       end if;
 
@@ -135,7 +143,12 @@ package body Devcert.CA_Store is
         (Metadata_Path,
          Metadata_For (Devcert_Secure_Files.Read (Certificate_Path)),
          Secret => True);
+      Devcert.Locks.Release (Lock_Path);
       return Evaluate;
+   exception
+      when others =>
+         Devcert.Locks.Release (Lock_Path);
+         raise;
    end Create;
 
    function Ensure return CA_State is

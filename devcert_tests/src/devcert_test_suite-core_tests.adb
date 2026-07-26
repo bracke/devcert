@@ -23,6 +23,7 @@ with Devcert.Certificate_Requests;
 with Devcert.Context;
 with Devcert.Errors;
 with Devcert.Identities;
+with Devcert.Locks;
 with Devcert.Locale;
 with Devcert.Processes;
 with Devcert.Results;
@@ -46,6 +47,7 @@ package body Devcert_Test_Suite.Core_Tests is
    use type Devcert.Certificate_Requests.Request_Status;
    use type Devcert.Errors.Error_Kind;
    use type Devcert.Identities.Identity_Kind;
+   use type Devcert.Locks.Lock_Result;
 
    procedure Reset_Temp_Home (Name : String) is
       Path : constant String := "/tmp/devcert-aunit-" & Name;
@@ -180,6 +182,11 @@ package body Devcert_Test_Suite.Core_Tests is
       Assert
         (Devcert.Processes.Locate ("definitely-not-devcert-tool") = "",
          "process layer reports missing executables deterministically");
+      Assert
+        (Devcert.Locks.Acquire ("/tmp/devcert-aunit-architecture.lock")
+         = Devcert.Locks.Acquired,
+         "lock layer exposes writer serialization primitive");
+      Devcert.Locks.Release ("/tmp/devcert-aunit-architecture.lock");
       Assert
         (Devcert_Trust_Stores.Name (Devcert.Trust_Stores.System.Default_Target)
          /= "",
@@ -921,6 +928,32 @@ package body Devcert_Test_Suite.Core_Tests is
       Assert
         (Devcert.Clock.Now'Length >= 19,
          "production clock returns formatted time");
+   end Run_Test;
+
+   overriding function Name (Item : Lock_Test) return AUnit.Message_String is
+      pragma Unreferenced (Item);
+   begin
+      return AUnit.Format ("lock serialization");
+   end Name;
+
+   overriding procedure Run_Test (Item : in out Lock_Test) is
+      pragma Unreferenced (Item);
+      Path : constant String := "/tmp/devcert-aunit-locks/create.lock";
+   begin
+      if Ada.Directories.Exists ("/tmp/devcert-aunit-locks") then
+         Ada.Directories.Delete_Tree ("/tmp/devcert-aunit-locks");
+      end if;
+      Assert
+        (Devcert.Locks.Acquire (Path) = Devcert.Locks.Acquired,
+         "first writer acquires lock");
+      Assert
+        (Devcert.Locks.Acquire (Path) = Devcert.Locks.Already_Held,
+         "second writer observes held lock");
+      Devcert.Locks.Release (Path);
+      Assert
+        (Devcert.Locks.Acquire (Path) = Devcert.Locks.Acquired,
+         "released lock can be acquired again");
+      Devcert.Locks.Release (Path);
    end Run_Test;
 
    overriding function Name (Item : CA_Lifecycle_Test) return AUnit.Message_String is

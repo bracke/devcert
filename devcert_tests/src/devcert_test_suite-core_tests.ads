@@ -58,6 +58,10 @@ package Devcert_Test_Suite.Core_Tests is
    overriding function Name (Item : Clock_Test) return AUnit.Message_String;
    overriding procedure Run_Test (Item : in out Clock_Test);
 
+   type Lock_Test is new AUnit.Simple_Test_Cases.Test_Case with null record;
+   overriding function Name (Item : Lock_Test) return AUnit.Message_String;
+   overriding procedure Run_Test (Item : in out Lock_Test);
+
    type CA_Lifecycle_Test is new AUnit.Simple_Test_Cases.Test_Case with null record;
    overriding function Name (Item : CA_Lifecycle_Test) return AUnit.Message_String;
    overriding procedure Run_Test (Item : in out CA_Lifecycle_Test);
