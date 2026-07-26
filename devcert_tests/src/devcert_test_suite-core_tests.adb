@@ -274,23 +274,117 @@ package body Devcert_Test_Suite.Core_Tests is
    is
       pragma Unreferenced (Item);
    begin
-      return AUnit.Format ("localized message rendering");
+      return AUnit.Format ("devcert localization policy");
    end Name;
 
    overriding procedure Run_Test (Item : in out Localization_Message_Test) is
       pragma Unreferenced (Item);
+
+      procedure Assert_Catalog_Contains
+        (Path : String;
+         Id   : String)
+      is
+         Catalog : constant String := Devcert_Secure_Files.Read (Path);
+      begin
+         Assert
+           (Index (To_Unbounded_String (Catalog), "en." & Id & " =") /= 0,
+            Path & " is missing devcert message id " & Id);
+      end Assert_Catalog_Contains;
    begin
+      Ada.Environment_Variables.Set ("LANG", "de_DE.UTF-8");
+      Ada.Environment_Variables.Set ("LC_MESSAGES", "fr_FR.UTF-8");
+      Ada.Environment_Variables.Set ("LC_ALL", "C");
+      Ada.Environment_Variables.Set ("DEVCERT_LOCALE", "en_GB");
+      Assert
+        (Devcert.Locale.Current = "en_GB",
+         "DEVCERT_LOCALE overrides platform locale variables");
+
+      Ada.Environment_Variables.Clear ("DEVCERT_LOCALE");
+      Assert
+        (Devcert.Locale.Current = "C",
+         "LC_ALL overrides LC_MESSAGES and LANG");
+
+      Ada.Environment_Variables.Clear ("LC_ALL");
+      Assert
+        (Devcert.Locale.Current = "fr_FR.UTF-8",
+         "LC_MESSAGES overrides LANG");
+
+      Ada.Environment_Variables.Clear ("LC_MESSAGES");
+      Assert
+        (Devcert.Locale.Current = "de_DE.UTF-8",
+         "LANG is used when devcert and LC overrides are absent");
+
+      Assert_Catalog_Contains ("config/messages/en.catalog", "app.name");
+      Assert_Catalog_Contains ("share/devcert/messages.catalog", "app.name");
+      Assert_Catalog_Contains ("config/messages/en.catalog", "cli.usage");
+      Assert_Catalog_Contains ("share/devcert/messages.catalog", "cli.usage");
+      Assert_Catalog_Contains ("config/messages/en.catalog", "cli.commands");
+      Assert_Catalog_Contains ("share/devcert/messages.catalog", "cli.commands");
+      Assert_Catalog_Contains ("config/messages/en.catalog", "cli.global_options");
+      Assert_Catalog_Contains ("share/devcert/messages.catalog", "cli.global_options");
+      Assert_Catalog_Contains
+        ("config/messages/en.catalog", "cli.global_options_paths");
+      Assert_Catalog_Contains
+        ("share/devcert/messages.catalog", "cli.global_options_paths");
+      Assert_Catalog_Contains ("config/messages/en.catalog", "error.devcert");
+      Assert_Catalog_Contains ("share/devcert/messages.catalog", "error.devcert");
+      Assert_Catalog_Contains
+        ("config/messages/en.catalog", "error.missing_value");
+      Assert_Catalog_Contains
+        ("share/devcert/messages.catalog", "error.missing_value");
+      Assert_Catalog_Contains
+        ("config/messages/en.catalog", "error.duplicate_option");
+      Assert_Catalog_Contains
+        ("share/devcert/messages.catalog", "error.duplicate_option");
+      Assert_Catalog_Contains ("config/messages/en.catalog", "error.invalid_color");
+      Assert_Catalog_Contains ("share/devcert/messages.catalog", "error.invalid_color");
+      Assert_Catalog_Contains ("config/messages/en.catalog", "error.unknown_option");
+      Assert_Catalog_Contains ("share/devcert/messages.catalog", "error.unknown_option");
+      Assert_Catalog_Contains ("config/messages/en.catalog", "error.unknown_command");
+      Assert_Catalog_Contains ("share/devcert/messages.catalog", "error.unknown_command");
+      Assert_Catalog_Contains
+        ("config/messages/en.catalog", "error.invalid_certificate_request");
+      Assert_Catalog_Contains
+        ("share/devcert/messages.catalog", "error.invalid_certificate_request");
+      Assert_Catalog_Contains ("config/messages/en.catalog", "error.ca_unusable");
+      Assert_Catalog_Contains ("share/devcert/messages.catalog", "error.ca_unusable");
+      Assert_Catalog_Contains ("config/messages/en.catalog", "error.invalid_identity");
+      Assert_Catalog_Contains ("share/devcert/messages.catalog", "error.invalid_identity");
+      Assert_Catalog_Contains
+        ("config/messages/en.catalog", "error.mixed_identity_modes");
+      Assert_Catalog_Contains
+        ("share/devcert/messages.catalog", "error.mixed_identity_modes");
+      Assert_Catalog_Contains ("config/messages/en.catalog", "error.csr_combination");
+      Assert_Catalog_Contains ("share/devcert/messages.catalog", "error.csr_combination");
+      Assert_Catalog_Contains ("config/messages/en.catalog", "cert.issued");
+      Assert_Catalog_Contains ("share/devcert/messages.catalog", "cert.issued");
+      Assert_Catalog_Contains ("config/messages/en.catalog", "cert.p12_written");
+      Assert_Catalog_Contains ("share/devcert/messages.catalog", "cert.p12_written");
+      Assert_Catalog_Contains ("config/messages/en.catalog", "inspect.ca");
+      Assert_Catalog_Contains ("share/devcert/messages.catalog", "inspect.ca");
+      Assert_Catalog_Contains ("config/messages/en.catalog", "doctor.ca_complete");
+      Assert_Catalog_Contains ("share/devcert/messages.catalog", "doctor.ca_complete");
+
       Assert
         (Devcert_Messages.Text ("cli.usage") =
          "usage: devcert [global-options] <command> [command-options] [arguments]",
-         "catalog lookup renders English fallback");
+         "devcert renders CLI usage through its catalog wrapper");
       Assert
         (Devcert_Messages.Text ("cert.issued", "localhost") =
          "certificate issued for localhost",
-         "message parameter substitution is deterministic");
+         "devcert command messages accept stable value parameters");
       Assert
         (Devcert_Messages.Text ("missing.example") = "missing.example",
-         "missing message ids remain stable diagnostics");
+         "missing devcert message ids remain stable diagnostics");
+      Assert
+        (Index
+           (To_Unbounded_String
+              (Devcert_JSON.Status ("doctor", Devcert_Messages.Text ("app.name"))),
+            """schema_version"":1,""status"":""success"",""command"":""doctor""")
+         /= 0,
+         "JSON contract field names are not localized");
+
+      Ada.Environment_Variables.Clear ("LANG");
    end Run_Test;
 
    overriding function Name (Item : Fingerprint_Test) return AUnit.Message_String is
