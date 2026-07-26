@@ -3,6 +3,9 @@
 The automated test suite lives in `devcert_tests` and uses AUnit. Runtime code
 does not depend on AUnit.
 
+The public-package coverage map is maintained in
+`docs/test_coverage_map.md`.
+
 The default suite currently contains 31 deterministic tests. Categories covered
 by automated tests include:
 
