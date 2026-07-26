@@ -248,6 +248,10 @@ package body Devcert_Test_Suite.Core_Tests is
 
       Unknown_Root : constant String := "/tmp/devcert-aunit-cli-unknown";
       Option_Root  : constant String := "/tmp/devcert-aunit-cli-option";
+      Env_Root     : constant String := "/tmp/devcert-aunit-cli-env-root";
+      Env_Override : constant String := "/tmp/devcert-aunit-cli-env-override";
+      CLI_Root     : constant String := "/tmp/devcert-aunit-cli-override-root";
+      Dup_Root     : constant String := "/tmp/devcert-aunit-cli-duplicate";
       Code         : Integer := 0;
       Output       : Unbounded_String;
    begin
@@ -256,6 +260,18 @@ package body Devcert_Test_Suite.Core_Tests is
       end if;
       if Ada.Directories.Exists (Option_Root) then
          Ada.Directories.Delete_Tree (Option_Root);
+      end if;
+      if Ada.Directories.Exists (Env_Root) then
+         Ada.Directories.Delete_Tree (Env_Root);
+      end if;
+      if Ada.Directories.Exists (CLI_Root) then
+         Ada.Directories.Delete_Tree (CLI_Root);
+      end if;
+      if Ada.Directories.Exists (Env_Override) then
+         Ada.Directories.Delete_Tree (Env_Override);
+      end if;
+      if Ada.Directories.Exists (Dup_Root) then
+         Ada.Directories.Delete_Tree (Dup_Root);
       end if;
 
       Run_Devcert
@@ -290,6 +306,52 @@ package body Devcert_Test_Suite.Core_Tests is
       Assert
         (not Ada.Directories.Exists (Option_Root),
          "unknown cert option does not create CA root");
+
+      Run_Devcert
+        ([new String'("--ca-root"),
+          new String'(Dup_Root),
+          new String'("--plain"),
+          new String'("--plain"),
+          new String'("version")],
+         Code,
+         Output);
+      Assert
+        (Code = Devcert_Exit_Codes.Usage_Error,
+         "duplicate global singleton option is usage");
+      Assert
+        (Index (Output, "duplicate option --plain") /= 0,
+         "duplicate global option diagnostic is deterministic");
+      Assert
+        (not Ada.Directories.Exists (Dup_Root),
+         "duplicate global option does not create CA root");
+
+      Ada.Environment_Variables.Set ("DEVCERT_CAROOT", Env_Root);
+      Run_Devcert
+        ([new String'("--plain"), new String'("cert"), new String'("localhost")],
+         Code,
+         Output);
+      Assert (Code = Devcert_Exit_Codes.Success, "DEVCERT_CAROOT cert succeeds");
+      Assert
+        (Ada.Directories.Exists (Env_Root & "/rootCA.pem"),
+         "DEVCERT_CAROOT controls CA root when --ca-root is absent");
+
+      Ada.Environment_Variables.Set ("DEVCERT_CAROOT", Env_Override);
+      Run_Devcert
+        ([new String'("--ca-root"),
+          new String'(CLI_Root),
+          new String'("--plain"),
+          new String'("cert"),
+          new String'("localhost")],
+         Code,
+         Output);
+      Assert (Code = Devcert_Exit_Codes.Success, "--ca-root cert succeeds");
+      Assert
+        (Ada.Directories.Exists (CLI_Root & "/rootCA.pem"),
+         "--ca-root overrides DEVCERT_CAROOT");
+      Assert
+        (not Ada.Directories.Exists (Env_Override),
+         "--ca-root prevents mutation of DEVCERT_CAROOT directory");
+      Ada.Environment_Variables.Clear ("DEVCERT_CAROOT");
    end Run_Test;
 
    overriding function Name (Item : Json_Escape_Test) return AUnit.Message_String is
