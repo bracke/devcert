@@ -35,6 +35,8 @@ jobs:
       - uses: actions/checkout@v4
         with: { repository: "${{ github.repository_owner }}/regexp", path: regexp }
       - uses: actions/checkout@v4
+        with: { repository: "${{ github.repository_owner }}/hostkit", path: hostkit }
+      - uses: actions/checkout@v4
         with: { repository: "${{ github.repository_owner }}/i18n", path: i18n }
       - uses: actions/checkout@v4
         with: { repository: "${{ github.repository_owner }}/messages", path: messages }
