@@ -536,6 +536,28 @@ package body Devcert_Test_Suite.Core_Tests is
         (Index (Output, Character'Val (16#1B#) & "[") = 0,
          "plain output contains no ANSI escapes");
 
+      Run_Devcert
+        ([new String'("--color=always"), new String'("version")],
+         Code,
+         Output);
+      Assert
+        (Code = Devcert_Exit_Codes.Success,
+         "forced terminal color version command succeeds");
+      Assert
+        (Index (Output, "[*] " & Devcert_Core.Version) /= 0,
+         "--color=always routes through terminal styling");
+
+      Run_Devcert
+        ([new String'("--color=never"), new String'("version")],
+         Code,
+         Output);
+      Assert
+        (Code = Devcert_Exit_Codes.Success,
+         "color-never version command succeeds");
+      Assert
+        (Index (Output, "[*]") = 0,
+         "--color=never routes through plain output");
+
       Ada.Environment_Variables.Set ("NO_COLOR", "1");
       Run_Devcert ([new String'("version")], Code, Output);
       Ada.Environment_Variables.Clear ("NO_COLOR");
