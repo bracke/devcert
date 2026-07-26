@@ -14,6 +14,7 @@ package body Devcert_Test_Suite is
       Result.Add_Test (new Core_Tests.Json_Escape_Test);
       Result.Add_Test (new Core_Tests.Json_Control_Escape_Test);
       Result.Add_Test (new Core_Tests.Json_Envelope_Test);
+      Result.Add_Test (new Core_Tests.Output_Mode_Test);
       Result.Add_Test (new Core_Tests.Localization_Message_Test);
       Result.Add_Test (new Core_Tests.Fingerprint_Test);
       Result.Add_Test (new Core_Tests.State_Path_Test);

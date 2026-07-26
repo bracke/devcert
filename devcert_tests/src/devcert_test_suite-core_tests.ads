@@ -36,6 +36,10 @@ package Devcert_Test_Suite.Core_Tests is
    overriding function Name (Item : Json_Envelope_Test) return AUnit.Message_String;
    overriding procedure Run_Test (Item : in out Json_Envelope_Test);
 
+   type Output_Mode_Test is new AUnit.Simple_Test_Cases.Test_Case with null record;
+   overriding function Name (Item : Output_Mode_Test) return AUnit.Message_String;
+   overriding procedure Run_Test (Item : in out Output_Mode_Test);
+
    type Localization_Message_Test is
      new AUnit.Simple_Test_Cases.Test_Case with null record;
    overriding function Name

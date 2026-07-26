@@ -356,6 +356,84 @@ package body Devcert_Test_Suite.Core_Tests is
          "artifact envelope is deterministic");
    end Run_Test;
 
+   overriding function Name (Item : Output_Mode_Test) return AUnit.Message_String is
+      pragma Unreferenced (Item);
+   begin
+      return AUnit.Format ("output mode routing");
+   end Name;
+
+   overriding procedure Run_Test (Item : in out Output_Mode_Test) is
+      pragma Unreferenced (Item);
+
+      procedure Run_Devcert
+        (Args        : GNAT.OS_Lib.Argument_List;
+         Exit_Code   : out Integer;
+         Output_Text : out Unbounded_String)
+      is
+         Spawned     : Boolean := False;
+         Output_File : constant String := "/tmp/devcert-aunit-output.out";
+      begin
+         if Ada.Directories.Exists (Output_File) then
+            Ada.Directories.Delete_File (Output_File);
+         end if;
+         GNAT.OS_Lib.Spawn
+           ("./bin/devcert",
+            Args,
+            Output_File,
+            Spawned,
+            Exit_Code,
+            Err_To_Out => True);
+         Output_Text :=
+           (if Ada.Directories.Exists (Output_File)
+            then To_Unbounded_String (Devcert_Secure_Files.Read (Output_File))
+            else Null_Unbounded_String);
+         if Ada.Directories.Exists (Output_File) then
+            Ada.Directories.Delete_File (Output_File);
+         end if;
+         if not Spawned then
+            Exit_Code := -1;
+         end if;
+      end Run_Devcert;
+
+      Code   : Integer := 0;
+      Output : Unbounded_String;
+   begin
+      Run_Devcert
+        ([new String'("--json"), new String'("version")],
+         Code,
+         Output);
+      Assert (Code = Devcert_Exit_Codes.Success, "JSON version command succeeds");
+      Assert
+        (Index
+           (Output,
+            "{""schema_version"":1,""status"":""success"",""command"":""version""")
+         /= 0,
+         "JSON mode uses stable devcert envelope fields");
+      Assert
+        (Index (Output, Character'Val (16#1B#) & "[") = 0,
+         "JSON output contains no ANSI escapes");
+
+      Run_Devcert
+        ([new String'("--plain"), new String'("version")],
+         Code,
+         Output);
+      Assert (Code = Devcert_Exit_Codes.Success, "plain version command succeeds");
+      Assert
+        (Index (Output, Devcert_Core.Version) /= 0,
+         "plain artifact output contains the version value");
+      Assert
+        (Index (Output, Character'Val (16#1B#) & "[") = 0,
+         "plain output contains no ANSI escapes");
+
+      Ada.Environment_Variables.Set ("NO_COLOR", "1");
+      Run_Devcert ([new String'("version")], Code, Output);
+      Ada.Environment_Variables.Clear ("NO_COLOR");
+      Assert (Code = Devcert_Exit_Codes.Success, "NO_COLOR version command succeeds");
+      Assert
+        (Index (Output, Character'Val (16#1B#) & "[") = 0,
+         "NO_COLOR selects unstyled output in auto color mode");
+   end Run_Test;
+
    overriding function Name
      (Item : Localization_Message_Test) return AUnit.Message_String
    is
