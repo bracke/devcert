@@ -7,7 +7,8 @@ The default suite currently contains 30 deterministic tests. Categories covered
 by automated tests include:
 
 * CLI contracts through stable exit-code, JSON envelope, duplicate option,
-  CA-root and trust-store precedence, and no-mutation invalid invocation tests
+  CA-root and trust-store precedence, certificate option combinations, and
+  no-mutation invalid invocation tests
 * JSON control-character escaping, deterministic field ordering, output mode
   routing, terminal styling selection, and ANSI exclusion in JSON/plain output
 * context and architecture package surface

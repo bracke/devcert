@@ -255,6 +255,11 @@ package body Devcert_Test_Suite.Core_Tests is
       Trust_Root   : constant String := "/tmp/devcert-aunit-cli-trust-root";
       Trust_Dir    : constant String := "/tmp/devcert-aunit-cli-trust-dir";
       Bad_Env_Root : constant String := "/tmp/devcert-aunit-cli-bad-env";
+      Profile_Root : constant String := "/tmp/devcert-aunit-cli-profile";
+      CSR_Root     : constant String := "/tmp/devcert-aunit-cli-csr";
+      Password_Root : constant String := "/tmp/devcert-aunit-cli-password";
+      CSR_Path     : constant String := "/tmp/devcert-aunit-cli.csr";
+      Password_Path : constant String := "/tmp/devcert-aunit-cli.password";
       Code         : Integer := 0;
       Output       : Unbounded_String;
    begin
@@ -284,6 +289,21 @@ package body Devcert_Test_Suite.Core_Tests is
       end if;
       if Ada.Directories.Exists (Bad_Env_Root) then
          Ada.Directories.Delete_Tree (Bad_Env_Root);
+      end if;
+      if Ada.Directories.Exists (Profile_Root) then
+         Ada.Directories.Delete_Tree (Profile_Root);
+      end if;
+      if Ada.Directories.Exists (CSR_Root) then
+         Ada.Directories.Delete_Tree (CSR_Root);
+      end if;
+      if Ada.Directories.Exists (Password_Root) then
+         Ada.Directories.Delete_Tree (Password_Root);
+      end if;
+      if Ada.Directories.Exists (CSR_Path) then
+         Ada.Directories.Delete_File (CSR_Path);
+      end if;
+      if Ada.Directories.Exists (Password_Path) then
+         Ada.Directories.Delete_File (Password_Path);
       end if;
 
       Run_Devcert
@@ -318,6 +338,69 @@ package body Devcert_Test_Suite.Core_Tests is
       Assert
         (not Ada.Directories.Exists (Option_Root),
          "unknown cert option does not create CA root");
+
+      Run_Devcert
+        ([new String'("--ca-root"),
+          new String'(Profile_Root),
+          new String'("--plain"),
+          new String'("cert"),
+          new String'("localhost"),
+          new String'("--client")],
+         Code,
+         Output);
+      Assert
+        (Code = Devcert_Exit_Codes.Usage_Error,
+         "profile option after identity is usage");
+      Assert
+        (Index (Output, "profile option must precede identities") /= 0,
+         "profile ordering diagnostic is deterministic");
+      Assert
+        (not Ada.Directories.Exists (Profile_Root),
+         "profile ordering error does not create CA root");
+
+      Devcert_Secure_Files.Atomic_Write
+        (CSR_Path, "-----BEGIN CERTIFICATE REQUEST-----" & ASCII.LF);
+      Run_Devcert
+        ([new String'("--ca-root"),
+          new String'(CSR_Root),
+          new String'("--plain"),
+          new String'("cert"),
+          new String'("--csr"),
+          new String'(CSR_Path),
+          new String'("--pkcs12")],
+         Code,
+         Output);
+      Assert
+        (Code = Devcert_Exit_Codes.Usage_Error,
+         "CSR with PKCS#12 is usage");
+      Assert
+        (Index (Output, "--csr cannot be combined") /= 0,
+         "CSR combination diagnostic is deterministic");
+      Assert
+        (not Ada.Directories.Exists (CSR_Root),
+         "CSR combination error does not create CA root");
+
+      Devcert_Secure_Files.Atomic_Write (Password_Path, "secret");
+      Run_Devcert
+        ([new String'("--ca-root"),
+          new String'(Password_Root),
+          new String'("--plain"),
+          new String'("cert"),
+          new String'("--pkcs12"),
+          new String'("--p12-password-file"),
+          new String'(Password_Path),
+          new String'("--p12-password-stdin")],
+         Code,
+         Output);
+      Assert
+        (Code = Devcert_Exit_Codes.Usage_Error,
+         "duplicate PKCS#12 password source is usage");
+      Assert
+        (Index (Output, "duplicate PKCS#12 password option") /= 0,
+         "duplicate PKCS#12 password diagnostic is deterministic");
+      Assert
+        (not Ada.Directories.Exists (Password_Root),
+         "duplicate PKCS#12 password error does not create CA root");
 
       Run_Devcert
         ([new String'("--ca-root"),
