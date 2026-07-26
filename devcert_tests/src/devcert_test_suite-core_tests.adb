@@ -682,6 +682,19 @@ package body Devcert_Test_Suite.Core_Tests is
       Assert
         (Created = Devcert.CA_Store.Invalid_Metadata,
          "ensure does not replace an invalid existing CA");
+      Devcert_Secure_Files.Atomic_Write
+        (Devcert_State.CA_Metadata_Path,
+         "managed-by=devcert" & ASCII.LF
+         & "created-at=unknown" & ASCII.LF
+         & "key-algorithm=Ed25519" & ASCII.LF
+         & "certificate-fingerprint="
+         & Devcert_Crypto.SHA256_Fingerprint
+           (Devcert_Secure_Files.Read (Devcert_State.CA_Certificate_Path))
+         & ASCII.LF,
+         Secret => True);
+      Assert
+        (Devcert.CA_Store.Evaluate = Devcert.CA_Store.Invalid_Metadata,
+         "metadata without format version is rejected");
       Devcert_Secure_Files.Ensure_Directory (Devcert_State.Base_Directory, "755");
       Assert
         (Devcert.CA_Store.Evaluate = Devcert.CA_Store.Unsafe_Permissions,
@@ -752,6 +765,7 @@ package body Devcert_Test_Suite.Core_Tests is
    overriding procedure Run_Test (Item : in out Secure_File_Test) is
       pragma Unreferenced (Item);
       Path : constant String := "/tmp/devcert-aunit-files/nested/value.txt";
+      Raw_Path : constant String := "/tmp/devcert-aunit-files/nested/value.der";
    begin
       Reset_Temp_Home ("files");
       if Ada.Directories.Exists ("/tmp/devcert-aunit-files") then
@@ -763,6 +777,29 @@ package body Devcert_Test_Suite.Core_Tests is
       Assert
         (Devcert_Secure_Files.Read (Path) = "alpha",
          "secure read returns text without adding data");
+      Assert
+        (Devcert_Secure_Files.Has_Permissions (Path, "600"),
+         "secret atomic write applies private permissions");
+
+      Devcert_Secure_Files.Atomic_Write (Path, "beta", Secret => False);
+      Assert
+        (Devcert_Secure_Files.Read (Path) = "beta",
+         "atomic overwrite replaces complete file content");
+      Assert
+        (Devcert_Secure_Files.Has_Permissions (Path, "644"),
+         "public atomic write applies public certificate permissions");
+      Assert
+        (not Devcert_Secure_Files.Exists (Path & ".tmp"),
+         "atomic overwrite leaves no temporary file");
+
+      Devcert_Secure_Files.Atomic_Write_Raw
+        (Raw_Path, Character'Val (16#30#) & Character'Val (16#03#) & "abc");
+      Assert
+        (Devcert_Secure_Files.Exists (Raw_Path),
+         "raw atomic write creates artifact file");
+      Assert
+        (not Devcert_Secure_Files.Exists (Raw_Path & ".tmp"),
+         "raw atomic write leaves no temporary file");
    end Run_Test;
 
    overriding function Name
