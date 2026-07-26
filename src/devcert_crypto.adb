@@ -191,6 +191,25 @@ package body Devcert_Crypto is
       end;
    end Sign_CSR;
 
+   function Private_Key_Matches_Certificate
+     (Certificate_PEM : String;
+      Private_Key_PEM : String) return Operation_Status
+   is
+      Status : constant CryptoLib.Certificates.Certificate_Status :=
+        CryptoLib.Certificates.Private_Key_Matches_Certificate
+          (Certificate_PEM, Private_Key_PEM);
+   begin
+      if Status = CryptoLib.Certificates.Ok then
+         return Ok;
+      elsif Status = CryptoLib.Certificates.Invalid_Input then
+         return Invalid_Request;
+      elsif Status = CryptoLib.Certificates.Unsupported_Profile then
+         return Unsupported_Profile;
+      else
+         return Unsupported;
+      end if;
+   end Private_Key_Matches_Certificate;
+
    function Generate_PKCS12
      (Name        : String;
       Bundle_Data : out Unbounded_String) return Operation_Status

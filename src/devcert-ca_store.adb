@@ -104,6 +104,10 @@ package body Devcert.CA_Store is
             return Invalid_Private_Key;
          elsif not Metadata_Matches (Metadata, Certificate) then
             return Invalid_Metadata;
+         elsif Devcert_Crypto.Private_Key_Matches_Certificate
+           (Certificate, Private_Key) /= Devcert_Crypto.Ok
+         then
+            return Certificate_Key_Mismatch;
          else
             return Complete;
          end if;

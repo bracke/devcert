@@ -938,6 +938,10 @@ package body Devcert_Test_Suite.Core_Tests is
 
    overriding procedure Run_Test (Item : in out CA_Invalid_Material_Test) is
       pragma Unreferenced (Item);
+      First_Cert  : Unbounded_String;
+      First_Key   : Unbounded_String;
+      Second_Cert : Unbounded_String;
+      Second_Key  : Unbounded_String;
 
       procedure Write_CA
         (Certificate : String;
@@ -957,7 +961,9 @@ package body Devcert_Test_Suite.Core_Tests is
             & "created-at=test" & ASCII.LF
             & "key-algorithm=Ed25519" & ASCII.LF
             & "certificate-fingerprint="
-            & Devcert_Crypto.SHA256_Fingerprint (Certificate) & ASCII.LF,
+            & Devcert_Crypto.SHA256_Fingerprint
+              (Devcert_Secure_Files.Read (Devcert_State.CA_Certificate_Path))
+            & ASCII.LF,
             Secret => True);
       end Write_CA;
    begin
@@ -980,6 +986,28 @@ package body Devcert_Test_Suite.Core_Tests is
       Assert
         (Devcert.CA_Store.Evaluate = Devcert.CA_Store.Invalid_Private_Key,
          "CA evaluator rejects invalid private-key material");
+
+      Reset_Temp_Home ("mismatched-ca-key");
+      Assert
+        (Devcert_Crypto.Create_CA (First_Cert, First_Key) = Devcert_Crypto.Ok,
+         "first CA material is generated for mismatch test");
+      Assert
+        (Devcert_Crypto.Create_CA (Second_Cert, Second_Key) = Devcert_Crypto.Ok,
+         "second CA material is generated for mismatch test");
+      Assert
+        (Devcert_Crypto.Private_Key_Matches_Certificate
+           (To_String (First_Cert), To_String (Second_Key))
+         = Devcert_Crypto.Invalid_Request,
+         "crypto adapter rejects certificate/private-key mismatch");
+      Write_CA (To_String (First_Cert), To_String (Second_Key));
+      declare
+         State : constant Devcert.CA_Store.CA_State := Devcert.CA_Store.Evaluate;
+      begin
+         Assert
+           (State = Devcert.CA_Store.Certificate_Key_Mismatch,
+            "CA evaluator rejects certificate/private-key mismatch; got "
+            & Devcert.CA_Store.State_Image (State));
+      end;
    end Run_Test;
 
    overriding function Name (Item : Secure_File_Test) return AUnit.Message_String is

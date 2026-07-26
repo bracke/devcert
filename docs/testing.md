@@ -13,7 +13,8 @@ by automated tests include:
 * context and architecture package surface
 * certificate requests, request cardinality limits, output names, and identity
   validation
-* CA store, metadata, invalid material states, permissions, and secure writes
+* CA store, metadata, invalid material states, certificate/key mismatch,
+  permissions, and secure writes
 * cryptolib adapter boundaries
 * CSR and PKCS#12 error/status behavior
 * end-to-end install, certificate issuance, inspection, doctor, and uninstall

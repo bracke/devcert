@@ -31,6 +31,10 @@ package Devcert_Crypto is
      (CSR_PEM         : String;
       Certificate_PEM : out Unbounded_String) return Operation_Status;
 
+   function Private_Key_Matches_Certificate
+     (Certificate_PEM : String;
+      Private_Key_PEM : String) return Operation_Status;
+
    function Generate_PKCS12
      (Name        : String;
       Bundle_Data : out Unbounded_String) return Operation_Status;
