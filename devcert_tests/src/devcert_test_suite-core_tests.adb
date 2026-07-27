@@ -1826,9 +1826,6 @@ package body Devcert_Test_Suite.Core_Tests is
 
       Home    : constant String := Paths.Scratch ("devcert-aunit-nss-home");
       Shared  : constant String := Home & "/.pki/nssdb";
-      Profile : constant String :=
-        Home & "/.mozilla/firefox/abcd1234.default-release";
-      Decoy   : constant String := Home & "/.mozilla/firefox/Crash Reports";
 
       Saved_Home : constant String :=
         (if Ada.Environment_Variables.Exists ("HOME")
@@ -1849,22 +1846,35 @@ package body Devcert_Test_Suite.Core_Tests is
       end if;
       Ada.Environment_Variables.Clear ("DEVCERT_NSS_DB");
       Ada.Directories.Create_Path (Shared);
-      Ada.Directories.Create_Path (Profile);
-      Ada.Directories.Create_Path (Decoy);
-      Devcert_Secure_Files.Atomic_Write (Profile & "/cert9.db", "not a real db");
-      Ada.Environment_Variables.Set ("HOME", Home);
 
-      --  Firefox reads none of the shared database, so finding only that one
-      --  would leave every Firefox on the machine untrusting of the CA.
-      Assert
-        (Discovered (Shared),
-         "the shared Chromium database is discovered");
-      Assert
-        (Discovered (Profile),
-         "a Firefox profile holding cert9.db is discovered");
-      Assert
-        (not Discovered (Decoy),
-         "a directory without cert9.db is not handed to certutil");
+      --  Firefox keeps its profiles somewhere different on every host, so the
+      --  fixture is built where this host actually looks rather than where a
+      --  Linux machine would.
+      Ada.Environment_Variables.Set ("HOME", Home);
+      Ada.Environment_Variables.Set ("APPDATA", Home & "/AppData/Roaming");
+
+      declare
+         Root    : constant String := Devcert_Trust_Stores.Firefox_Profile_Root;
+         Profile : constant String := Root & "/abcd1234.default-release";
+         Decoy   : constant String := Root & "/Crash Reports";
+      begin
+         Ada.Directories.Create_Path (Profile);
+         Ada.Directories.Create_Path (Decoy);
+         Devcert_Secure_Files.Atomic_Write
+           (Profile & "/cert9.db", "not a real db");
+
+         --  Firefox reads none of the shared database, so finding only that
+         --  one would leave every Firefox on the machine untrusting of the CA.
+         Assert
+           (Discovered (Shared),
+            "the shared Chromium database is discovered");
+         Assert
+           (Discovered (Profile),
+            "a Firefox profile holding cert9.db is discovered");
+         Assert
+           (not Discovered (Decoy),
+            "a directory without cert9.db is not handed to certutil");
+      end;
 
       --  An explicit database is the whole answer, which is what the platform
       --  runs rely on to stay off the real profiles.

@@ -39,6 +39,11 @@ package Devcert_Trust_Stores is
       Selection : out Store_Selection) return Boolean;
    function Target_For (Kind : Trust_Store_Kind) return Trust_Target;
    function Probe (Kind : Trust_Store_Kind) return Trust_State;
+   --  Where this host keeps Firefox profiles. Each holding a cert9.db is an
+   --  NSS database of its own; the path differs per host, which is why a test
+   --  has to ask rather than assume.
+   function Firefox_Profile_Root return String;
+
    --  The NSS databases devcert would act on: the shared one Chromium reads
    --  under ~/.pki/nssdb, plus one per Firefox profile, which reads no other.
    --  DEVCERT_NSS_DB names one instead of all of them.
