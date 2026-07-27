@@ -20,11 +20,12 @@ that way is trusted by no browser, whatever the trust-store adapters do.
 asks for P-384; a leaf follows the CA's own key, because it has to be
 verifiable by whatever accepts the CA.
 
-CSRs are read and verified as Ed25519 requests only. Signing one with a P-384
-CA works -- the CA signs what it was handed -- but verifying an ECDSA request
-would need a verifier `cryptolib` does not have yet.
+CSRs are read and verified as either Ed25519 or P-384 requests; which one a
+request is shows in the request itself, so the caller does not declare it. The
+subject's key and the CA's need not agree: a CSR brings its own key and the CA
+signs what it was handed.
 
 The certificate boundary is `CryptoLib.Certificates`. It owns Ed25519 and
 P-384 key generation, X.509 certificate construction, PKCS#8 private-key encoding,
-PKCS#10 CSR parsing for Ed25519 requests, certificate signing, and PFX
+PKCS#10 CSR parsing and signature verification, certificate signing, and PFX
 construction.

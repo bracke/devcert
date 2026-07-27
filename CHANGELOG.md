@@ -29,6 +29,7 @@ Initial development release.
   certificate -- `certutil` answers `SEC_ERROR_ADDING_CERT` -- so the NSS trust
   store could never have worked, for Firefox or Chromium, whatever the adapter
   did.
+* P-384 certificate requests are accepted as well as Ed25519 ones.
 * The NSS store covers Firefox. `$HOME/.pki/nssdb` is the database Chromium
   reads and Firefox does not; devcert now also acts on every Firefox profile
   holding a `cert9.db`, reporting each database and staying
