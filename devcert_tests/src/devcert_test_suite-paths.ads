@@ -10,4 +10,9 @@ package Devcert_Test_Suite.Paths is
 
    --  Absolute path of the devcert executable exercised by the suite.
    function Devcert_Executable return String;
+
+   --  Path of Name inside the host's scratch directory. Tests write only here,
+   --  never into the user's real CA root, and never into a literal "/tmp" --
+   --  which Windows does not have.
+   function Scratch (Name : String) return String;
 end Devcert_Test_Suite.Paths;

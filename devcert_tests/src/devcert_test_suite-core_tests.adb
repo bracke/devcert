@@ -60,7 +60,7 @@ package body Devcert_Test_Suite.Core_Tests is
      (Devcert_Trust_Stores.Detect_Default_Target = Devcert_Trust_Stores.Linux);
 
    procedure Reset_Temp_Home (Name : String) is
-      Path : constant String := "/tmp/devcert-aunit-" & Name;
+      Path : constant String := Paths.Scratch ("devcert-aunit-") & Name;
    begin
       if Ada.Directories.Exists (Path) then
          Ada.Directories.Delete_Tree (Path);
@@ -193,10 +193,10 @@ package body Devcert_Test_Suite.Core_Tests is
         (Devcert.Processes.Locate ("definitely-not-devcert-tool") = "",
          "process layer reports missing executables deterministically");
       Assert
-        (Devcert.Locks.Acquire ("/tmp/devcert-aunit-architecture.lock")
+        (Devcert.Locks.Acquire (Paths.Scratch ("devcert-aunit-architecture.lock"))
          = Devcert.Locks.Acquired,
          "lock layer exposes writer serialization primitive");
-      Devcert.Locks.Release ("/tmp/devcert-aunit-architecture.lock");
+      Devcert.Locks.Release (Paths.Scratch ("devcert-aunit-architecture.lock"));
       Assert
         (Devcert_Trust_Stores.Name (Devcert.Trust_Stores.System.Default_Target)
          /= "",
@@ -239,7 +239,7 @@ package body Devcert_Test_Suite.Core_Tests is
          Output_Text : out Unbounded_String)
       is
          Spawned     : Boolean := False;
-         Output_File : constant String := "/tmp/devcert-aunit-cli.out";
+         Output_File : constant String := Paths.Scratch ("devcert-aunit-cli.out");
       begin
          if Ada.Directories.Exists (Output_File) then
             Ada.Directories.Delete_File (Output_File);
@@ -263,20 +263,20 @@ package body Devcert_Test_Suite.Core_Tests is
          end if;
       end Run_Devcert;
 
-      Unknown_Root : constant String := "/tmp/devcert-aunit-cli-unknown";
-      Option_Root  : constant String := "/tmp/devcert-aunit-cli-option";
-      Env_Root     : constant String := "/tmp/devcert-aunit-cli-env-root";
-      Env_Override : constant String := "/tmp/devcert-aunit-cli-env-override";
-      CLI_Root     : constant String := "/tmp/devcert-aunit-cli-override-root";
-      Dup_Root     : constant String := "/tmp/devcert-aunit-cli-duplicate";
-      Trust_Root   : constant String := "/tmp/devcert-aunit-cli-trust-root";
-      Trust_Dir    : constant String := "/tmp/devcert-aunit-cli-trust-dir";
-      Bad_Env_Root : constant String := "/tmp/devcert-aunit-cli-bad-env";
-      Profile_Root : constant String := "/tmp/devcert-aunit-cli-profile";
-      CSR_Root     : constant String := "/tmp/devcert-aunit-cli-csr";
-      Password_Root : constant String := "/tmp/devcert-aunit-cli-password";
-      CSR_Path     : constant String := "/tmp/devcert-aunit-cli.csr";
-      Password_Path : constant String := "/tmp/devcert-aunit-cli.password";
+      Unknown_Root : constant String := Paths.Scratch ("devcert-aunit-cli-unknown");
+      Option_Root  : constant String := Paths.Scratch ("devcert-aunit-cli-option");
+      Env_Root     : constant String := Paths.Scratch ("devcert-aunit-cli-env-root");
+      Env_Override : constant String := Paths.Scratch ("devcert-aunit-cli-env-override");
+      CLI_Root     : constant String := Paths.Scratch ("devcert-aunit-cli-override-root");
+      Dup_Root     : constant String := Paths.Scratch ("devcert-aunit-cli-duplicate");
+      Trust_Root   : constant String := Paths.Scratch ("devcert-aunit-cli-trust-root");
+      Trust_Dir    : constant String := Paths.Scratch ("devcert-aunit-cli-trust-dir");
+      Bad_Env_Root : constant String := Paths.Scratch ("devcert-aunit-cli-bad-env");
+      Profile_Root : constant String := Paths.Scratch ("devcert-aunit-cli-profile");
+      CSR_Root     : constant String := Paths.Scratch ("devcert-aunit-cli-csr");
+      Password_Root : constant String := Paths.Scratch ("devcert-aunit-cli-password");
+      CSR_Path     : constant String := Paths.Scratch ("devcert-aunit-cli.csr");
+      Password_Path : constant String := Paths.Scratch ("devcert-aunit-cli.password");
       Code         : Integer := 0;
       Output       : Unbounded_String;
    begin
@@ -584,7 +584,7 @@ package body Devcert_Test_Suite.Core_Tests is
          Output_Text : out Unbounded_String)
       is
          Spawned     : Boolean := False;
-         Output_File : constant String := "/tmp/devcert-aunit-output.out";
+         Output_File : constant String := Paths.Scratch ("devcert-aunit-output.out");
       begin
          if Ada.Directories.Exists (Output_File) then
             Ada.Directories.Delete_File (Output_File);
@@ -697,7 +697,7 @@ package body Devcert_Test_Suite.Core_Tests is
          Output_Text : out Unbounded_String)
       is
          Spawned     : Boolean := False;
-         Output_File : constant String := "/tmp/devcert-aunit-locale.out";
+         Output_File : constant String := Paths.Scratch ("devcert-aunit-locale.out");
       begin
          if Ada.Directories.Exists (Output_File) then
             Ada.Directories.Delete_File (Output_File);
@@ -725,9 +725,9 @@ package body Devcert_Test_Suite.Core_Tests is
         Paths.In_Repository ("config/messages/en.catalog");
       Bundled_Catalog : constant String :=
         Paths.In_Repository ("share/devcert/messages.catalog");
-      Env_Catalog     : constant String := "/tmp/devcert-aunit-env.catalog";
-      CLI_Catalog     : constant String := "/tmp/devcert-aunit-cli.catalog";
-      Bad_Catalog     : constant String := "/tmp/devcert-aunit-bad.catalog";
+      Env_Catalog     : constant String := Paths.Scratch ("devcert-aunit-env.catalog");
+      CLI_Catalog     : constant String := Paths.Scratch ("devcert-aunit-cli.catalog");
+      Bad_Catalog     : constant String := Paths.Scratch ("devcert-aunit-bad.catalog");
       Code            : Integer := 0;
       Output          : Unbounded_String;
    begin
@@ -911,19 +911,19 @@ package body Devcert_Test_Suite.Core_Tests is
    begin
       Reset_Temp_Home ("state");
       Assert
-        (Devcert_State.Base_Directory = "/tmp/devcert-aunit-state",
+        (Devcert_State.Base_Directory = Paths.Scratch ("devcert-aunit-state"),
          "DEVCERT_CAROOT controls the base directory");
       Assert
         (Devcert_State.CA_Certificate_Path =
-         "/tmp/devcert-aunit-state/rootCA.pem",
+         Paths.Scratch ("devcert-aunit-state/rootCA.pem"),
          "CA certificate path is stable");
       Assert
         (Devcert_State.CA_Metadata_Path =
-         "/tmp/devcert-aunit-state/ca-metadata.txt",
+         Paths.Scratch ("devcert-aunit-state/ca-metadata.txt"),
          "CA metadata path is stable");
       Assert
         (Devcert_State.Leaf_Private_Key_Path ("localhost") =
-         "/tmp/devcert-aunit-state/issued/localhost-key.pem",
+         Paths.Scratch ("devcert-aunit-state/issued/localhost-key.pem"),
          "leaf key path is stable");
    end Run_Test;
 
@@ -954,10 +954,10 @@ package body Devcert_Test_Suite.Core_Tests is
 
    overriding procedure Run_Test (Item : in out Lock_Test) is
       pragma Unreferenced (Item);
-      Path : constant String := "/tmp/devcert-aunit-locks/create.lock";
+      Path : constant String := Paths.Scratch ("devcert-aunit-locks/create.lock");
    begin
-      if Ada.Directories.Exists ("/tmp/devcert-aunit-locks") then
-         Ada.Directories.Delete_Tree ("/tmp/devcert-aunit-locks");
+      if Ada.Directories.Exists (Paths.Scratch ("devcert-aunit-locks")) then
+         Ada.Directories.Delete_Tree (Paths.Scratch ("devcert-aunit-locks"));
       end if;
       Assert
         (Devcert.Locks.Acquire (Path) = Devcert.Locks.Acquired,
@@ -994,7 +994,7 @@ package body Devcert_Test_Suite.Core_Tests is
         (Devcert.CA_Store.Evaluate = Devcert.CA_Store.Incomplete,
          "partial CA root is incomplete");
 
-      Ada.Directories.Delete_Tree ("/tmp/devcert-aunit-ca-lifecycle");
+      Ada.Directories.Delete_Tree (Paths.Scratch ("devcert-aunit-ca-lifecycle"));
       Reset_Temp_Home ("ca-lifecycle");
       Created := Devcert.CA_Store.Ensure;
       Assert
@@ -1157,12 +1157,12 @@ package body Devcert_Test_Suite.Core_Tests is
 
    overriding procedure Run_Test (Item : in out Secure_File_Test) is
       pragma Unreferenced (Item);
-      Path : constant String := "/tmp/devcert-aunit-files/nested/value.txt";
-      Raw_Path : constant String := "/tmp/devcert-aunit-files/nested/value.der";
+      Path : constant String := Paths.Scratch ("devcert-aunit-files/nested/value.txt");
+      Raw_Path : constant String := Paths.Scratch ("devcert-aunit-files/nested/value.der");
    begin
       Reset_Temp_Home ("files");
-      if Ada.Directories.Exists ("/tmp/devcert-aunit-files") then
-         Ada.Directories.Delete_Tree ("/tmp/devcert-aunit-files");
+      if Ada.Directories.Exists (Paths.Scratch ("devcert-aunit-files")) then
+         Ada.Directories.Delete_Tree (Paths.Scratch ("devcert-aunit-files"));
       end if;
       Devcert_Secure_Files.Atomic_Write (Path, "alpha" & ASCII.LF, Secret => True);
       Assert (Devcert_Secure_Files.Exists (Path), "atomic write creates file");
@@ -1237,7 +1237,7 @@ package body Devcert_Test_Suite.Core_Tests is
       Assert
         (Index
            (To_Unbounded_String
-              (Devcert_JSON.Artifact ("cert", "path", "/tmp/cert.pem")),
+              (Devcert_JSON.Artifact ("cert", "path", Paths.Scratch ("cert.pem"))),
             Secret) = 0,
          "artifact JSON does not contain private-key marker");
    end Run_Test;
@@ -1621,7 +1621,7 @@ package body Devcert_Test_Suite.Core_Tests is
          Output_Text : out Unbounded_String)
       is
          Spawned     : Boolean := False;
-         Output_File : constant String := "/tmp/devcert-aunit-workflow.out";
+         Output_File : constant String := Paths.Scratch ("devcert-aunit-workflow.out");
       begin
          if Ada.Directories.Exists (Output_File) then
             Ada.Directories.Delete_File (Output_File);
@@ -1645,8 +1645,8 @@ package body Devcert_Test_Suite.Core_Tests is
          end if;
       end Run_Devcert;
 
-      Root      : constant String := "/tmp/devcert-aunit-workflow-root";
-      Trust_Dir : constant String := "/tmp/devcert-aunit-workflow-trust";
+      Root      : constant String := Paths.Scratch ("devcert-aunit-workflow-root");
+      Trust_Dir : constant String := Paths.Scratch ("devcert-aunit-workflow-trust");
       Code      : Integer := 0;
       Output    : Unbounded_String;
    begin
@@ -1839,7 +1839,7 @@ package body Devcert_Test_Suite.Core_Tests is
               (Devcert_Trust_Stores.Plan
                  (Devcert_Trust_Stores.Windows,
                   Devcert_Trust_Stores.Remove,
-                  "/tmp/root.pem",
+                  Paths.Scratch ("root.pem"),
                   "aa:bb")),
             "Windows certificate store") /= 0,
          "Windows trust plan is explicit");
@@ -1849,7 +1849,7 @@ package body Devcert_Test_Suite.Core_Tests is
               (Devcert_Trust_Stores.Plan
                  (Devcert_Trust_Stores.NSS,
                   Devcert_Trust_Stores.Install,
-                  "/tmp/root.pem",
+                  Paths.Scratch ("root.pem"),
                   "aa:bb")),
             "NSS profiles") /= 0,
          "NSS trust plan is explicit");
@@ -1873,7 +1873,7 @@ package body Devcert_Test_Suite.Core_Tests is
       Devcert_Trust_Stores.Apply
         (Selection,
          Devcert_Trust_Stores.Install,
-         "/tmp/missing-root.pem",
+         Paths.Scratch ("missing-root.pem"),
          "aa:bb",
          State,
          Message);
@@ -1897,8 +1897,8 @@ package body Devcert_Test_Suite.Core_Tests is
      (Item : in out Trust_Linux_Mutation_Test)
    is
       pragma Unreferenced (Item);
-      Trust_Dir : constant String := "/tmp/devcert-aunit-linux-trust";
-      Cert_Path : constant String := "/tmp/devcert-aunit-linux-root.pem";
+      Trust_Dir : constant String := Paths.Scratch ("devcert-aunit-linux-trust");
+      Cert_Path : constant String := Paths.Scratch ("devcert-aunit-linux-root.pem");
       Target    : constant String := Trust_Dir & "/devcert-aabbcc.crt";
       Cert      : constant String :=
         "-----BEGIN CERTIFICATE-----" & ASCII.LF

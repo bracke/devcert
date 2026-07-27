@@ -3,6 +3,8 @@ with Ada.Directories;
 
 with GNAT.OS_Lib;
 
+with Devcert_Secure_Files;
+
 package body Devcert_Test_Suite.Paths is
    use type GNAT.OS_Lib.String_Access;
 
@@ -69,4 +71,9 @@ package body Devcert_Test_Suite.Paths is
    begin
       return In_Repository ("bin/devcert");
    end Devcert_Executable;
+
+   function Scratch (Name : String) return String is
+   begin
+      return Devcert_Secure_Files.Temp_Directory & "/" & Name;
+   end Scratch;
 end Devcert_Test_Suite.Paths;

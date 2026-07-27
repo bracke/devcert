@@ -101,33 +101,51 @@ package body Devcert_Secure_Files is
    function Permissions (Path : String) return String is
       Stat        : constant String := Locate ("stat");
       Output_File : constant String := Path & ".mode";
-      Spawned     : Boolean := False;
-      Return_Code : Integer := 1;
+
+      function Ask (Flag : String; Format : String) return String is
+         Spawned     : Boolean := False;
+         Return_Code : Integer := 1;
+      begin
+         GNAT.OS_Lib.Spawn
+           (Stat,
+            [new String'(Flag), new String'(Format), new String'(Path)],
+            Output_File,
+            Spawned,
+            Return_Code,
+            Err_To_Out => True);
+         if Spawned and then Return_Code = 0
+           and then Ada.Directories.Exists (Output_File)
+         then
+            declare
+               Result : constant String := Read (Output_File);
+            begin
+               Ada.Directories.Delete_File (Output_File);
+               return Result;
+            end;
+         end if;
+
+         if Ada.Directories.Exists (Output_File) then
+            Ada.Directories.Delete_File (Output_File);
+         end if;
+         return "";
+      end Ask;
    begin
       if Stat = "" or else not Ada.Directories.Exists (Path) then
          return "";
       end if;
 
-      GNAT.OS_Lib.Spawn
-        (Stat,
-         [new String'("-c"), new String'("%a"), new String'(Path)],
-         Output_File,
-         Spawned,
-         Return_Code,
-         Err_To_Out => True);
-      if Spawned and then Return_Code = 0 and then Ada.Directories.Exists (Output_File) then
-         declare
-            Result : constant String := Read (Output_File);
-         begin
-            Ada.Directories.Delete_File (Output_File);
-            return Result;
-         end;
-      end if;
-
-      if Ada.Directories.Exists (Output_File) then
-         Ada.Directories.Delete_File (Output_File);
-      end if;
-      return "";
+      --  `-c %a` is GNU coreutils; BSD stat, as on macOS, rejects it and spells
+      --  the same question `-f %Lp`. The command exists on both, so the wrong
+      --  form fails as a non-zero exit rather than as a missing tool -- which is
+      --  why this read silently answered nothing on macOS until now.
+      declare
+         GNU : constant String := Ask ("-c", "%a");
+      begin
+         if GNU /= "" then
+            return GNU;
+         end if;
+      end;
+      return Ask ("-f", "%Lp");
    end Permissions;
 
    function Has_Permissions (Path : String; Mode : String) return Boolean is
@@ -145,6 +163,11 @@ package body Devcert_Secure_Files is
    begin
       return Hostkit.Fs.Directory_Accessible_By_Others (Path);
    end Directory_Accessible_By_Others;
+
+   function Temp_Directory return String is
+   begin
+      return Hostkit.Fs.Temp_Directory;
+   end Temp_Directory;
 
    procedure Atomic_Write
      (Path    : String;

@@ -6,6 +6,7 @@ authors = ["Bent Bracke"]
 maintainers = ["Bent Bracke <bent@bracke.dk>"]
 maintainers-logins = ["bracke"]
 licenses = "MIT"
+tags = ["certificates", "tls", "https", "development", "security"]
 executables = ["devcert"]
 
 [[depends-on]]

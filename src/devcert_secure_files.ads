@@ -27,4 +27,10 @@ package Devcert_Secure_Files is
    --  The same question for a directory. A directory's mode bits do not mean
    --  what a file's mean, so hostkit answers them separately.
    function Directory_Accessible_By_Others (Path : String) return Boolean;
+
+   --  The host's directory for scratch files, without a trailing separator.
+   --  Asked of hostkit: $TMPDIR or /tmp on POSIX, GetTempPath on Windows, which
+   --  answers even for a spawned tool whose environment carries no TEMP.
+   --  "/tmp" is not a place every host has.
+   function Temp_Directory return String;
 end Devcert_Secure_Files;
