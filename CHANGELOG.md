@@ -10,3 +10,9 @@ Initial development release.
   generated artifact, parity, release, and distribution checks.
 * Local CA lifecycle, certificate issuance, trust-store planning, localized
   output, stable JSON, and release documentation.
+* The message catalog is resolved relative to the executable
+  (`<executable-directory>/../share/devcert`) before the working directory, so
+  an installed `devcert` is localized from any directory. `DEVCERT_CATALOG` and
+  `--catalog` keep precedence.
+* The test suite resolves repository paths from its own executable, so it can be
+  run from any working directory.
