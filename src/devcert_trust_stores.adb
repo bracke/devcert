@@ -775,7 +775,14 @@ package body Devcert_Trust_Stores is
         and then Ada.Directories.Exists (Path)
       then
          Count := Count + 1;
-         Databases (Count) := Ada.Strings.Unbounded.To_Unbounded_String (Path);
+         --  Canonical, so every entry is comparable with every other. A profile
+         --  found by enumeration arrives full-named already; leaving the ones
+         --  built from environment variables as typed meant two spellings of
+         --  the same directory, which only shows up where the separator
+         --  differs from the one the caller wrote.
+         Databases (Count) :=
+           Ada.Strings.Unbounded.To_Unbounded_String
+             (Ada.Directories.Full_Name (Path));
       end if;
    end Add_Database;
 

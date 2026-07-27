@@ -1831,10 +1831,16 @@ package body Devcert_Test_Suite.Core_Tests is
         (if Ada.Environment_Variables.Exists ("HOME")
          then Ada.Environment_Variables.Value ("HOME") else "");
 
+      --  Compared canonically: the host decides how a path is spelled, and on
+      --  Windows the one devcert returns carries backslashes while the one
+      --  written here does not.
       function Discovered (Path : String) return Boolean is
+         Wanted : constant String := Ada.Directories.Full_Name (Path);
       begin
          for Index in 1 .. Devcert_Trust_Stores.NSS_Database_Count loop
-            if Devcert_Trust_Stores.NSS_Database_Path (Index) = Path then
+            if Ada.Directories.Full_Name
+                 (Devcert_Trust_Stores.NSS_Database_Path (Index)) = Wanted
+            then
                return True;
             end if;
          end loop;
@@ -1881,7 +1887,7 @@ package body Devcert_Test_Suite.Core_Tests is
       Ada.Environment_Variables.Set ("DEVCERT_NSS_DB", Shared);
       Assert
         (Devcert_Trust_Stores.NSS_Database_Count = 1
-         and then Devcert_Trust_Stores.NSS_Database_Path (1) = Shared,
+         and then Discovered (Shared),
          "DEVCERT_NSS_DB names one database instead of all of them");
       Ada.Environment_Variables.Clear ("DEVCERT_NSS_DB");
 
