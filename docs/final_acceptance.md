@@ -12,6 +12,10 @@ Runtime:
 Cryptography:
 
 * cryptographic operations are delegated to `cryptolib`
+* facts that differ because the host differs -- which host this is, whether a
+  path is readable by others, restricting one to its owner, and the replacing
+  rename an atomic write ends in -- are delegated to `hostkit`, never sniffed
+  from the environment and never spawned as a POSIX tool
 * certificate profiles, CSR signing, and PKCS#12 generation are supported
   through `CryptoLib.Certificates`
 

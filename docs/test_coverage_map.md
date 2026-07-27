@@ -61,8 +61,10 @@ catalog fallback.
 
 Package: `Devcert_Secure_Files`.
 
-Coverage: atomic text/raw writes, overwrite behavior, permissions, and temp
-cleanup.
+Coverage: atomic text/raw writes, overwrite behavior, permissions, temp
+cleanup, and owner-only access. The exposure assertions run only where the host
+expresses the question in mode bits, which the suite asks the host rather than
+assumes.
 
 ## External Platform Coverage
 
