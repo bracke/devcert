@@ -1045,6 +1045,15 @@ package body Devcert_Test_Suite.Core_Tests is
       Assert
         (Devcert_Secure_Files.Exists (Devcert_State.Issued_Directory),
          "CA creation writes issued directory");
+      --  Not a detail: NSS refuses to import an Ed25519 certificate, so a CA
+      --  built that way is trusted by no browser however well the trust-store
+      --  adapters work.
+      Assert
+        (Index
+           (To_Unbounded_String
+              (Devcert_Secure_Files.Read (Devcert_State.CA_Metadata_Path)),
+            "key-algorithm=P-384") /= 0,
+         "the CA is P-384, which a browser can import");
       Assert
         (Devcert_Secure_Files.Has_Permissions
            (Devcert_State.Base_Directory, "700"),
@@ -1063,7 +1072,7 @@ package body Devcert_Test_Suite.Core_Tests is
          "format-version=1" & ASCII.LF
          & "managed-by=devcert" & ASCII.LF
          & "created-at=unknown" & ASCII.LF
-         & "key-algorithm=Ed25519" & ASCII.LF
+         & "key-algorithm=P-384" & ASCII.LF
          & "certificate-fingerprint=bad" & ASCII.LF,
          Secret => True);
       Assert
@@ -1077,7 +1086,7 @@ package body Devcert_Test_Suite.Core_Tests is
         (Devcert_State.CA_Metadata_Path,
          "managed-by=devcert" & ASCII.LF
          & "created-at=unknown" & ASCII.LF
-         & "key-algorithm=Ed25519" & ASCII.LF
+         & "key-algorithm=P-384" & ASCII.LF
          & "certificate-fingerprint="
          & Devcert_Crypto.SHA256_Fingerprint
            (Devcert_Secure_Files.Read (Devcert_State.CA_Certificate_Path))
@@ -1131,7 +1140,7 @@ package body Devcert_Test_Suite.Core_Tests is
             "format-version=1" & ASCII.LF
             & "managed-by=devcert" & ASCII.LF
             & "created-at=test" & ASCII.LF
-            & "key-algorithm=Ed25519" & ASCII.LF
+            & "key-algorithm=P-384" & ASCII.LF
             & "certificate-fingerprint="
             & Devcert_Crypto.SHA256_Fingerprint
               (Devcert_Secure_Files.Read (Devcert_State.CA_Certificate_Path))

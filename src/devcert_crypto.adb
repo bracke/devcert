@@ -57,7 +57,11 @@ package body Devcert_Crypto is
    is
       Status : constant CryptoLib.Certificates.Certificate_Status :=
         CryptoLib.Certificates.Create_Local_CA
-          ("devcert-local-development-ca", Certificate_PEM, Private_Key_PEM);
+          ("devcert-local-development-ca", Certificate_PEM, Private_Key_PEM,
+           --  P-384, not Ed25519: NSS refuses to import an Ed25519 certificate
+           --  at all, so a CA built that way is trusted by no browser -- which
+           --  is the entire point of a local development CA.
+           CryptoLib.Certificates.P384_Key);
    begin
       if Status = CryptoLib.Certificates.Ok then
          return Ok;

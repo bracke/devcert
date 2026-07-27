@@ -39,7 +39,7 @@ package body Devcert.CA_Store is
       return "format-version=1" & ASCII.LF
         & "managed-by=devcert" & ASCII.LF
         & "created-at=" & Devcert.Clock.Now & ASCII.LF
-        & "key-algorithm=Ed25519" & ASCII.LF
+        & "key-algorithm=P-384" & ASCII.LF
         & "certificate-fingerprint="
         & Devcert_Crypto.SHA256_Fingerprint (Certificate)
         & ASCII.LF;

@@ -24,6 +24,11 @@ Initial development release.
 * CI builds and tests on macOS and Windows as well as Linux.
 * `devcert_tools platform-check` gained `macos-system` and `windows-system`
   targets, and each target refuses to run on any host but its own.
+* The local CA and the certificates it issues are NIST P-384 with
+  ECDSA-SHA384 rather than Ed25519. NSS refuses to import an Ed25519
+  certificate -- `certutil` answers `SEC_ERROR_ADDING_CERT` -- so the NSS trust
+  store could never have worked, for Firefox or Chromium, whatever the adapter
+  did.
 * The NSS store covers Firefox. `$HOME/.pki/nssdb` is the database Chromium
   reads and Firefox does not; devcert now also acts on every Firefox profile
   holding a `cert9.db`, reporting each database and staying
