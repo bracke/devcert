@@ -46,4 +46,4 @@ Thumbs.db
 /share/i18n/
 
 # Staged binary artifact from tools/package_artifact
-/devcert-macos-x86_64.tar.gz
+/devcert-*-x86_64.tar.gz

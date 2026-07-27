@@ -107,13 +107,23 @@ devcert --ca-root /tmp/devcert-platform-macos uninstall --trust-store system
 Verify the fingerprint with `security find-certificate` or equivalent
 Keychain inspection.
 
-## Windows
+## Windows System Store
 
 Run from a disposable Windows user profile or VM:
+
+```text
+set DEVCERT_RUN_PLATFORM_TRUST_TESTS=1
+devcert_tools platform-check windows-system
+```
+
+The same sequence as the other system targets, against the Windows certificate
+store through `certutil`. Writing to the machine store needs an elevated
+prompt; the current-user store does not.
+
+Verify the current-user root store before and after removal with `certutil`.
+The step-by-step form, if the check itself is what is under suspicion:
 
 ```text
 devcert --ca-root %TEMP%\devcert-platform-windows install --trust-store system
 devcert --ca-root %TEMP%\devcert-platform-windows uninstall --trust-store system
 ```
-
-Verify the current-user root store before and after removal with `certutil`.

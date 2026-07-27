@@ -72,20 +72,13 @@ begin
       --  tarlib writes deterministic metadata -- every file 0644 -- which is
       --  right for a reproducible archive and wrong for the one thing here that
       --  has to run on arrival. These entries carry an explicit mode instead.
-      procedure Add_Executable (Path : String; Required : Boolean) is
+      procedure Emit_Executable (Path : String) is
          Chunk : constant := 64 * 1024;
          File  : Ada.Streams.Stream_IO.File_Type;
          Meta  : Tarlib.Entries.Metadata;
          Data  : Ada.Streams.Stream_Element_Array (1 .. Chunk);
          Last  : Ada.Streams.Stream_Element_Offset;
       begin
-         if not Ada.Directories.Exists (Path) then
-            if Required then
-               Fail (Path & " is missing; build before packaging");
-            end if;
-            return;
-         end if;
-
          Meta.Mode := 8#0755#;
          Tarlib.Writers.Begin_Entry
            (Archive,
@@ -117,6 +110,21 @@ begin
          Tarlib.Writers.End_Entry (Archive, Result);
          if Result.Code /= Tarlib.Errors.Success then
             Fail ("could not end " & Path & ": " & Result.Code'Image);
+         end if;
+      end Emit_Executable;
+
+      --  Windows names the same build devcert.exe, and the archive keeps
+      --  whichever name the host produced rather than renaming it to look
+      --  uniform, which would leave an unrunnable file on unpacking.
+      procedure Add_Executable (Path : String; Required : Boolean) is
+         Windows_Path : constant String := Path & ".exe";
+      begin
+         if Ada.Directories.Exists (Path) then
+            Emit_Executable (Path);
+         elsif Ada.Directories.Exists (Windows_Path) then
+            Emit_Executable (Windows_Path);
+         elsif Required then
+            Fail (Path & " is missing; build before packaging");
          end if;
       end Add_Executable;
    begin

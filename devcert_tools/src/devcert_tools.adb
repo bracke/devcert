@@ -1084,10 +1084,13 @@ procedure Devcert_Tools is
          Run_System_Platform_Check ("linux-system", Hostkit.Host.Linux);
       elsif Target = "macos-system" then
          Run_System_Platform_Check ("macos-system", Hostkit.Host.MacOS);
+      elsif Target = "windows-system" then
+         Run_System_Platform_Check ("windows-system", Hostkit.Host.Windows);
       else
          Put_Line
            (Standard_Error,
-            "usage: devcert_tools platform-check linux-system|macos-system");
+            "usage: devcert_tools platform-check "
+            & "linux-system|macos-system|windows-system");
          Ada.Command_Line.Set_Exit_Status (Ada.Command_Line.Failure);
       end if;
    end Run_Platform_Check;
@@ -1106,7 +1109,7 @@ procedure Devcert_Tools is
       Put_Line ("  documentation");
       Put_Line ("  parity-check");
       Put_Line ("  tooling-tests");
-      Put_Line ("  platform-check linux-system|macos-system");
+      Put_Line ("  platform-check linux-system|macos-system|windows-system");
    end Print_Usage;
 
    Command : constant String :=

@@ -152,34 +152,39 @@ jobs:
         # working directory here is free; see docs/testing.md.
         run: alr exec -- ./bin/devcert_tests
 
-      # The keychain adapter can only be validated by hand, on a Mac. This is
-      # that build, packaged to carry there: bin/devcert with the share/ tree it
-      # reads at Exe/../share, plus devcert_tools and devcert.gpr, which is how
-      # platform-check finds the root. gnat_native has no aarch64-darwin build,
-      # so this is x86_64 and runs under Rosetta on Apple silicon.
-      - name: Build the tooling for the artifact (macOS)
-        if: runner.os == 'macOS'
+      # A system trust store can only be validated on its own host, by hand, so
+      # each job keeps the build it just made: bin/devcert with the share/ tree
+      # it reads at Exe/../share, plus devcert_tools and devcert.gpr, which is
+      # how platform-check finds the root. Unpack on the host in question and
+      # `platform-check <host>-system` runs where it lands. All three are
+      # x86_64: gnat_native has no aarch64-darwin build, so the macOS one runs
+      # under Rosetta on Apple silicon.
+      - name: Build the tooling for the artifact
         shell: bash
         working-directory: devcert/devcert_tools
         run: alr --non-interactive build
 
-      - name: Package the macOS binary
-        if: runner.os == 'macOS'
+      - name: Package the binary
         shell: bash
         working-directory: devcert
         # tar through tarlib and gzip through zlib, because repository tooling
         # here is Ada -- and because tarlib lets the executable bit through,
         # which the upload step's own zip would drop.
         run: |
+          case "${RUNNER_OS}" in
+            Linux)   NAME=devcert-linux-x86_64 ;;
+            macOS)   NAME=devcert-macos-x86_64 ;;
+            Windows) NAME=devcert-windows-x86_64 ;;
+            *)       echo "::error::unknown runner OS ${RUNNER_OS}"; exit 1 ;;
+          esac
+          echo "DEVCERT_ARTIFACT=${NAME}" >> "$GITHUB_ENV"
           (cd tools/package_artifact && alr --non-interactive build)
-          ./tools/package_artifact/bin/package_artifact \
-            devcert-macos-x86_64 devcert-macos-x86_64.tar.gz
+          ./tools/package_artifact/bin/package_artifact "${NAME}" "${NAME}.tar.gz"
 
-      - name: Upload the macOS binary
-        if: runner.os == 'macOS'
+      - name: Upload the binary
         uses: actions/upload-artifact@v7
         with:
-          name: devcert-macos-x86_64
-          path: devcert/devcert-macos-x86_64.tar.gz
+          name: ${{ env.DEVCERT_ARTIFACT }}
+          path: devcert/${{ env.DEVCERT_ARTIFACT }}.tar.gz
           if-no-files-found: error
           retention-days: 30

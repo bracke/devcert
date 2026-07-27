@@ -22,8 +22,8 @@ Initial development release.
   and atomic writes end in a replacing rename instead of a delete followed by a
   rename.
 * CI builds and tests on macOS and Windows as well as Linux.
-* `devcert_tools platform-check` gained a `macos-system` target, and each target
-  refuses to run on any host but its own.
+* `devcert_tools platform-check` gained `macos-system` and `windows-system`
+  targets, and each target refuses to run on any host but its own.
 * The host platform is answered by `hostkit` instead of sniffed from `OSTYPE`,
   which is a shell variable a spawned process never inherits: devcert read every
   macOS as a Linux and selected the `update-ca-certificates` backend on a

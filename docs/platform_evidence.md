@@ -57,7 +57,9 @@ run of `devcert_tools platform-check macos-system` on a Mac, recorded here.
 Not validated.
 
 `certutil` is reached through the same live command adapter as macOS. CI builds
-and runs the suite on Windows and skips the mutating assertions there too.
+and runs the suite on Windows and skips the mutating assertions there too. What
+closes it is a run of `devcert_tools platform-check windows-system` on Windows,
+recorded here.
 
 ## NSS And Java Stores
 
