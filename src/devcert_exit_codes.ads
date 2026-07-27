@@ -9,5 +9,8 @@ package Devcert_Exit_Codes is
    Permission_Error      : constant := 7;
    Partial_Success       : constant := 8;
    Unsupported_Feature   : constant := 9;
-   Localization_Error    : constant := 10;
+   --  10 was a localization error. Nothing produced it and nothing should: a
+   --  missing or malformed catalog falls back to bare message identifiers so
+   --  that the real error can still be reported. The number stays retired
+   --  rather than being reused for something else.
 end Devcert_Exit_Codes;

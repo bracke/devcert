@@ -105,7 +105,10 @@ Stable exit codes:
 * `7` permission error
 * `8` partial success
 * `9` unsupported platform or feature
-* `10` localization error
+
+Code `10` was a localization error. It is retired rather than reused: nothing
+produced it and nothing should, because a missing or malformed catalog falls
+back to bare message identifiers so that the real error can still be reported.
 
 ## Diagnosing Failures
 
@@ -126,12 +129,13 @@ What the non-zero exits usually mean:
 * `5` cryptographic error — the operation reached `cryptolib` and failed there.
 * `6` trust-store error — see the per-store states in the command output.
   `tool-missing` means the platform tool is absent: `certutil` for NSS,
-  `keytool` for Java, `security` on macOS. `permission-required` means the
-  store needs elevated privileges; rerun with the privileges the platform
-  expects.
+  `keytool` for Java, `security` on macOS.
+* `7` permission error — every store that failed did so for want of
+  privileges. Rerun with the privileges the platform expects. This is reported
+  separately from `6` because it is the one trust-store failure the caller can
+  act on; a run where some stores succeeded reports `8` instead.
 * `8` partial success — some selected stores succeeded and others did not. The
   output lists every store with its own state.
-Codes `7` and `10` are reserved and are not produced by the current runtime.
 A missing or malformed catalog does not fail: human output falls back to bare
 message identifiers so that the real error can still be reported. See
 [installation.md](installation.md) for where the catalog is expected.

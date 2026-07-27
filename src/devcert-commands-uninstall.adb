@@ -58,6 +58,13 @@ package body Devcert.Commands.Uninstall is
            (Context, "uninstall", Ada.Strings.Unbounded.To_String (Message));
          Ada.Command_Line.Set_Exit_Status
            (Ada.Command_Line.Exit_Status (Devcert_Exit_Codes.Partial_Success));
+      elsif Trust_State = Devcert_Trust_Stores.Permission_Required then
+         --  Removal wants the same privileges installation did; see the note in
+         --  Devcert.Commands.Install.
+         Devcert.Output.Error
+           (Context, "uninstall", Ada.Strings.Unbounded.To_String (Message));
+         Ada.Command_Line.Set_Exit_Status
+           (Ada.Command_Line.Exit_Status (Devcert_Exit_Codes.Permission_Error));
       else
          Devcert.Output.Error
            (Context, "uninstall", Ada.Strings.Unbounded.To_String (Message));

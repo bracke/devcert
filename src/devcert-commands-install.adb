@@ -58,6 +58,15 @@ package body Devcert.Commands.Install is
            (Context, "install", Ada.Strings.Unbounded.To_String (Message));
          Ada.Command_Line.Set_Exit_Status
            (Ada.Command_Line.Exit_Status (Devcert_Exit_Codes.Partial_Success));
+      elsif Trust_State = Devcert_Trust_Stores.Permission_Required then
+         --  Distinct from a broken store: the caller has something to do about
+         --  it. Folding this into the trust-store code left the commonest
+         --  failure of all -- a system store wanting elevated privileges --
+         --  indistinguishable from one that is unusable.
+         Devcert.Output.Error
+           (Context, "install", Ada.Strings.Unbounded.To_String (Message));
+         Ada.Command_Line.Set_Exit_Status
+           (Ada.Command_Line.Exit_Status (Devcert_Exit_Codes.Permission_Error));
       else
          Devcert.Output.Error
            (Context, "install", Ada.Strings.Unbounded.To_String (Message));

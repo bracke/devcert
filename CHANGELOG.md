@@ -28,6 +28,11 @@ Initial development release.
   machine whose trust store is the keychain.
 * An unsafe CA root or `issued/` directory is reported on macOS as well, through
   `Hostkit.Fs.Directory_Accessible_By_Others`.
+* A trust store that fails for want of privileges reports the permission exit
+  code rather than the general trust-store one. The aggregate state flattened
+  every failure into an error, so the commonest failure of all -- a system
+  store wanting elevated privileges -- was indistinguishable from an unusable
+  one. Exit code `10` is retired; nothing produced it and nothing should.
 * The mode read behind `doctor`'s expected-mode reporting falls back to BSD
   `stat -f %Lp` where GNU `stat -c %a` is rejected, so it answers on macOS
   instead of silently reporting nothing.

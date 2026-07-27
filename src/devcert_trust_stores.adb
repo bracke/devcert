@@ -936,6 +936,10 @@ package body Devcert_Trust_Stores is
    is
       Success_Count : Natural := 0;
       Failure_Count : Natural := 0;
+      --  Of the failures, how many were the store asking for privileges. Kept
+      --  apart because that is the one failure the caller can act on, and the
+      --  aggregate used to flatten it into Error along with everything else.
+      Denied_Count  : Natural := 0;
       Combined      : Unbounded_String;
    begin
       Message := Ada.Strings.Unbounded.Null_Unbounded_String;
@@ -977,6 +981,9 @@ package body Devcert_Trust_Stores is
                Success_Count := Success_Count + 1;
             else
                Failure_Count := Failure_Count + 1;
+               if Item_State = Permission_Required then
+                  Denied_Count := Denied_Count + 1;
+               end if;
             end if;
          end;
       end loop;
@@ -986,6 +993,10 @@ package body Devcert_Trust_Stores is
          State := Partial;
       elsif Success_Count > 0 then
          State := Installed;
+      elsif Denied_Count = Failure_Count then
+         --  Every store that failed did so for want of privileges, so the whole
+         --  operation has one answer and it is actionable.
+         State := Permission_Required;
       else
          State := Error;
       end if;

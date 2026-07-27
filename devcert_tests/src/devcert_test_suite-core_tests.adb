@@ -136,9 +136,6 @@ package body Devcert_Test_Suite.Core_Tests is
       Assert
         (Code (Devcert_Exit_Codes.Unsupported_Feature) = 9,
          "unsupported code is stable");
-      Assert
-        (Code (Devcert_Exit_Codes.Localization_Error) = 10,
-         "localization code is stable");
    end Run_Test;
 
    overriding function Name
@@ -272,6 +269,8 @@ package body Devcert_Test_Suite.Core_Tests is
       Trust_Root   : constant String := Paths.Scratch ("devcert-aunit-cli-trust-root");
       Trust_Dir    : constant String := Paths.Scratch ("devcert-aunit-cli-trust-dir");
       Bad_Env_Root : constant String := Paths.Scratch ("devcert-aunit-cli-bad-env");
+      Denied_Root  : constant String := Paths.Scratch ("devcert-aunit-cli-denied-root");
+      Denied_Dir   : constant String := Paths.Scratch ("devcert-aunit-cli-denied-dir");
       Profile_Root : constant String := Paths.Scratch ("devcert-aunit-cli-profile");
       CSR_Root     : constant String := Paths.Scratch ("devcert-aunit-cli-csr");
       Password_Root : constant String := Paths.Scratch ("devcert-aunit-cli-password");
@@ -502,6 +501,40 @@ package body Devcert_Test_Suite.Core_Tests is
         (not Ada.Directories.Exists (Bad_Env_Root),
          "invalid trust-store environment does not create CA root");
       Ada.Environment_Variables.Clear ("DEVCERT_TRUST_STORES");
+
+      --  A store that wants privileges the process does not have is a distinct
+      --  outcome from a broken one, and the caller has something to do about it.
+      --  An anchor directory the process cannot write into is the reachable form
+      --  of that on this host; a run as root can write anywhere, and a host with
+      --  no mode bits cannot withhold the write at all, so both skip.
+      if System_Store_Is_Isolated then
+         Devcert_Secure_Files.Ensure_Directory (Denied_Dir, "500");
+         Ada.Environment_Variables.Set ("DEVCERT_LINUX_TRUST_DIR", Denied_Dir);
+         if Devcert_Secure_Files.Permissions (Denied_Dir) = "500" then
+            Run_Devcert
+              ([new String'("--ca-root"),
+                new String'(Denied_Root),
+                new String'("--plain"),
+                new String'("install"),
+                new String'("--trust-store"),
+                new String'("system")],
+               Code,
+               Output);
+            Assert
+              (Code = Devcert_Exit_Codes.Permission_Error,
+               "a trust store that requires privileges reports the permission code");
+            Assert
+              (Index (Output, "requires permission") /= 0,
+               "the permission diagnostic says what the caller has to do");
+         end if;
+         Devcert_Secure_Files.Ensure_Directory (Denied_Dir, "700");
+         if Ada.Directories.Exists (Denied_Dir) then
+            Ada.Directories.Delete_Tree (Denied_Dir);
+         end if;
+         if Ada.Directories.Exists (Denied_Root) then
+            Ada.Directories.Delete_Tree (Denied_Root);
+         end if;
+      end if;
       Ada.Environment_Variables.Clear ("DEVCERT_LINUX_TRUST_DIR");
    end Run_Test;
 
