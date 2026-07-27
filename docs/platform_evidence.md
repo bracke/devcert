@@ -40,6 +40,37 @@ creates its CA root under the host's temporary directory and deletes it on the
 way out, so the fingerprint is gone with it. A future run should keep the
 transcript, which carries the fingerprint in the install and removal lines.
 
+## Linux System Store: update-ca-trust
+
+| | |
+| --- | --- |
+| Date | 2026-07-28 |
+| Operating systems | `fedora:latest` and `archlinux:latest`, in rootless podman |
+| Binary | The `devcert-linux-x86_64` artifact, built on TUXEDO OS |
+| devcert commit | `b55545a` plus the two fixes this run produced |
+| Result | Passed on both, after two bugs this run found |
+
+Fedora writes the anchor to `/etc/pki/ca-trust/source/anchors/`, Arch to
+`/etc/ca-certificates/trust-source/anchors/`; both then run `update-ca-trust`.
+On Arch, `trust list` shows the anchor while it is installed and does not once
+it is removed. A second removal reports there is nothing to remove and exits 0.
+
+Two bugs, both found here rather than by reasoning:
+
+* The `update-ca-trust` backend hardcoded Fedora's anchor directory, so on Arch
+  every install wrote into a directory that does not exist -- and reported it
+  as wanting privileges, exit 7, which is a plausible enough answer that it
+  could have stood for a long time.
+* Removal said `removed ... anchor` and exited 0 when nothing of ours was
+  there, including immediately after an install that had failed.
+
+Not covered: the third Linux backend. `trust anchor` is only selected where
+neither `update-ca-certificates` nor `update-ca-trust` exists, and Arch -- the
+distribution it was meant for -- ships `update-ca-trust` as well, so that path
+went unexercised again. Whether any distribution reaches it is an open
+question.
+
+
 ## macOS System Store
 
 Not validated.

@@ -446,7 +446,23 @@ package body Devcert_Trust_Stores is
          when Update_CA_Certificates =>
             return "/usr/local/share/ca-certificates/devcert-" & Safe & ".crt";
          when Update_CA_Trust =>
-            return "/etc/pki/ca-trust/source/anchors/devcert-" & Safe & ".crt";
+            --  Same tool, different directory: Fedora and RHEL keep anchors
+            --  under /etc/pki/ca-trust, Arch under /etc/ca-certificates. The
+            --  Fedora path was hardcoded, so on Arch every install wrote into
+            --  a directory that does not exist and reported it as wanting
+            --  privileges.
+            declare
+               Fedora : constant String := "/etc/pki/ca-trust/source/anchors";
+               Arch   : constant String :=
+                 "/etc/ca-certificates/trust-source/anchors";
+            begin
+               if Ada.Directories.Exists (Fedora) then
+                  return Fedora & "/devcert-" & Safe & ".crt";
+               elsif Ada.Directories.Exists (Arch) then
+                  return Arch & "/devcert-" & Safe & ".crt";
+               end if;
+               return Fedora & "/devcert-" & Safe & ".crt";
+            end;
          when others =>
             return "";
       end case;
@@ -541,7 +557,15 @@ package body Devcert_Trust_Stores is
                    ("linux trust anchor fingerprint mismatch; refusing removal");
                return;
             else
-               Ran := True;
+               --  Nothing of ours to remove. That is a success, but saying
+               --  "removed" for it is a claim about work that never happened,
+               --  and it read as removal from a store that had refused the
+               --  install moments earlier.
+               Success := True;
+               Message :=
+                 Ada.Strings.Unbounded.To_Unbounded_String
+                   ("no linux trust anchor for " & Fingerprint);
+               return;
             end if;
             Success := Ran;
             if Success then
