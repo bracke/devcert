@@ -61,8 +61,41 @@ and runs the suite on Windows and skips the mutating assertions there too. What
 closes it is a run of `devcert_tools platform-check windows-system` on Windows,
 recorded here.
 
-## NSS And Java Stores
+## NSS Databases
 
-Not validated on any platform. The Java adapter has been smoke-tested against a
-temporary keystore through `DEVCERT_JAVA_KEYSTORE`, which is not the same as a
-run against a real store; see [trust_stores.md](trust_stores.md).
+| | |
+| --- | --- |
+| Date | 2026-07-28 |
+| Operating system | TUXEDO OS 24.04.4 LTS, a Kubuntu derivative (`noble`) |
+| Kernel | Linux 6.17.0-122035-tuxedo |
+| Tool | `certutil`, `libnss3-tools` 2:3.98-1ubuntu0.2 |
+| devcert commit | `c8b4ca3` |
+| cryptolib commit | `b98e524` |
+| Databases | A disposable `HOME`: a shared `.pki/nssdb` and one Firefox |
+| | profile, both created with `certutil -N --empty-password` |
+| Result | Passed: installed into both, removed from both, and a |
+| | second removal was a no-op rather than a failure |
+
+The transcript, in order: `install --trust-store nss` reported
+`installed NSS trust anchor devcert-2036333c…` for each database and exited 0;
+`certutil -L` listed the anchor in both; `uninstall --trust-store nss` reported
+`removed …` for each and exited 0; `certutil -L` then listed it in neither; a
+second `uninstall` reported `no NSS trust anchor … in …` for each and still
+exited 0.
+
+This run is the reason the CA is P-384. The same sequence against an Ed25519
+CA failed at the first step: `certutil` answers `SEC_ERROR_ADDING_CERT` and
+refuses to import such a certificate at all, so the NSS store had never been
+able to work -- for Firefox or for Chromium -- whatever the adapter did. An
+RSA certificate imported into the same database, which is how the key, rather
+than the database or the tool, was identified as the cause.
+
+What it does not cover: the databases were disposable ones created for the
+run, not the profiles a person browses with, and no browser was launched
+against the result. It covers the adapter and the certificate NSS will accept,
+not the experience of visiting a site.
+
+## Java Keystores
+
+Not validated. The adapter has been smoke-tested against a temporary keystore
+through `DEVCERT_JAVA_KEYSTORE`, which is not a run against a real store.

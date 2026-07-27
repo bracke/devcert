@@ -30,8 +30,8 @@ What each column asserts:
 | install local CA | Implemented | Tested | Linux | Yes |
 | uninstall local CA | Implemented | Tested | Linux | Yes |
 | Linux system trust | Implemented | Tested | Linux | Yes |
-| NSS trust | Implemented | Tested | Pending | Yes |
-| Firefox trust | Implemented | Tested | Pending | Yes |
+| NSS trust | Implemented | Tested | Linux | Yes |
+| Firefox trust | Implemented | Tested | Linux | Yes |
 | Java trust | Implemented | Tested | Pending | Yes |
 | macOS trust | Implemented | Tested | Pending | Yes |
 | Windows trust | Implemented | Tested | Pending | Yes |
