@@ -51,6 +51,14 @@ package body Devcert_Test_Suite.Core_Tests is
    use type Devcert.Identities.Identity_Kind;
    use type Devcert.Locks.Lock_Result;
 
+   --  Only the Linux system store can be aimed at a directory of the suite's own,
+   --  through DEVCERT_LINUX_TRUST_DIR. Everywhere else "system" means the host's
+   --  real keychain or certificate store, which a test must not touch and cannot
+   --  mutate without privileges. Those cases are covered by the platform runs in
+   --  docs/platform_validation.md instead.
+   function System_Store_Is_Isolated return Boolean is
+     (Devcert_Trust_Stores.Detect_Default_Target = Devcert_Trust_Stores.Linux);
+
    procedure Reset_Temp_Home (Name : String) is
       Path : constant String := "/tmp/devcert-aunit-" & Name;
    begin
@@ -459,21 +467,23 @@ package body Devcert_Test_Suite.Core_Tests is
 
       Ada.Environment_Variables.Set ("DEVCERT_TRUST_STORES", "definitely-bad");
       Ada.Environment_Variables.Set ("DEVCERT_LINUX_TRUST_DIR", Trust_Dir);
-      Run_Devcert
-        ([new String'("--ca-root"),
-          new String'(Trust_Root),
-          new String'("--plain"),
-          new String'("install"),
-          new String'("--trust-store"),
-          new String'("system")],
-         Code,
-         Output);
-      Assert
-        (Code = Devcert_Exit_Codes.Success,
-         "--trust-store overrides invalid DEVCERT_TRUST_STORES");
-      Assert
-        (Ada.Directories.Exists (Trust_Dir),
-         "trust-store CLI override reaches isolated Linux backend");
+      if System_Store_Is_Isolated then
+         Run_Devcert
+           ([new String'("--ca-root"),
+             new String'(Trust_Root),
+             new String'("--plain"),
+             new String'("install"),
+             new String'("--trust-store"),
+             new String'("system")],
+            Code,
+            Output);
+         Assert
+           (Code = Devcert_Exit_Codes.Success,
+            "--trust-store overrides invalid DEVCERT_TRUST_STORES");
+         Assert
+           (Ada.Directories.Exists (Trust_Dir),
+            "trust-store CLI override reaches isolated Linux backend");
+      end if;
 
       Run_Devcert
         ([new String'("--ca-root"),
@@ -1044,9 +1054,16 @@ package body Devcert_Test_Suite.Core_Tests is
         (Devcert.CA_Store.Evaluate = Devcert.CA_Store.Invalid_Metadata,
          "metadata without format version is rejected");
       Devcert_Secure_Files.Ensure_Directory (Devcert_State.Base_Directory, "755");
-      Assert
-        (Devcert.CA_Store.Evaluate = Devcert.CA_Store.Unsafe_Permissions,
-         "unsafe CA root permissions are rejected");
+      --  Whether a loosened directory is even visible as such is a host fact: POSIX
+      --  has the mode bits, Windows scopes a directory by ACL and hostkit declines
+      --  to guess there. Ask the host first, then hold devcert to the answer.
+      if Devcert_Secure_Files.Directory_Accessible_By_Others
+           (Devcert_State.Base_Directory)
+      then
+         Assert
+           (Devcert.CA_Store.Evaluate = Devcert.CA_Store.Unsafe_Permissions,
+            "unsafe CA root permissions are rejected");
+      end if;
       Devcert.Clock.Reset_Test_Time;
    end Run_Test;
 
@@ -1641,22 +1658,27 @@ package body Devcert_Test_Suite.Core_Tests is
       end if;
       Ada.Environment_Variables.Set ("DEVCERT_LINUX_TRUST_DIR", Trust_Dir);
 
-      Run_Devcert
-        ([new String'("--ca-root"),
-          new String'(Root),
-          new String'("--plain"),
-          new String'("install"),
-          new String'("--trust-store"),
-          new String'("system")],
-         Code,
-         Output);
-      Assert (Code = Devcert_Exit_Codes.Success, "install workflow succeeds");
-      Assert
-        (Ada.Directories.Exists (Root & "/rootCA.pem"),
-         "install creates the root certificate");
-      Assert
-        (Ada.Directories.Exists (Trust_Dir),
-         "install writes to isolated trust directory");
+      --  The trust-mutating ends of the workflow only run where the system store
+      --  is a directory of the suite's own; the certificate half below is the
+      --  same on every host.
+      if System_Store_Is_Isolated then
+         Run_Devcert
+           ([new String'("--ca-root"),
+             new String'(Root),
+             new String'("--plain"),
+             new String'("install"),
+             new String'("--trust-store"),
+             new String'("system")],
+            Code,
+            Output);
+         Assert (Code = Devcert_Exit_Codes.Success, "install workflow succeeds");
+         Assert
+           (Ada.Directories.Exists (Root & "/rootCA.pem"),
+            "install creates the root certificate");
+         Assert
+           (Ada.Directories.Exists (Trust_Dir),
+            "install writes to isolated trust directory");
+      end if;
 
       Run_Devcert
         ([new String'("--ca-root"),
@@ -1699,23 +1721,27 @@ package body Devcert_Test_Suite.Core_Tests is
         (Index (Output, "doctor: ca complete") /= 0,
          "doctor reports complete CA");
 
-      Run_Devcert
-        ([new String'("--ca-root"),
-          new String'(Root),
-          new String'("--plain"),
-          new String'("uninstall"),
-          new String'("--trust-store"),
-          new String'("system")],
-         Code,
-         Output);
-      Assert (Code = Devcert_Exit_Codes.Success, "uninstall workflow succeeds");
-      Assert
-        (Index (Output, "removed linux trust anchor") /= 0,
-         "uninstall reports isolated trust anchor removal");
+      if System_Store_Is_Isolated then
+         Run_Devcert
+           ([new String'("--ca-root"),
+             new String'(Root),
+             new String'("--plain"),
+             new String'("uninstall"),
+             new String'("--trust-store"),
+             new String'("system")],
+            Code,
+            Output);
+         Assert (Code = Devcert_Exit_Codes.Success, "uninstall workflow succeeds");
+         Assert
+           (Index (Output, "removed linux trust anchor") /= 0,
+            "uninstall reports isolated trust anchor removal");
+      end if;
 
       Ada.Environment_Variables.Clear ("DEVCERT_LINUX_TRUST_DIR");
       Ada.Directories.Delete_Tree (Root);
-      Ada.Directories.Delete_Tree (Trust_Dir);
+      if Ada.Directories.Exists (Trust_Dir) then
+         Ada.Directories.Delete_Tree (Trust_Dir);
+      end if;
    end Run_Test;
 
    overriding function Name (Item : Trust_Target_Test) return AUnit.Message_String is

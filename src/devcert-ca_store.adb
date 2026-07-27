@@ -96,6 +96,9 @@ package body Devcert.CA_Store is
           (Devcert_State.Issued_Directory, "700")
         or else Devcert_Secure_Files.Accessible_By_Others (Private_Key_Path)
         or else Devcert_Secure_Files.Accessible_By_Others (Metadata_Path)
+        or else Devcert_Secure_Files.Directory_Accessible_By_Others (Root)
+        or else Devcert_Secure_Files.Directory_Accessible_By_Others
+          (Devcert_State.Issued_Directory)
       then
          return Unsafe_Permissions;
       end if;

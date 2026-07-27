@@ -123,6 +123,11 @@ package body Devcert_Secure_Files is
       return Hostkit.Fs.Accessible_By_Others (Path);
    end Accessible_By_Others;
 
+   function Directory_Accessible_By_Others (Path : String) return Boolean is
+   begin
+      return Hostkit.Fs.Directory_Accessible_By_Others (Path);
+   end Directory_Accessible_By_Others;
+
    procedure Atomic_Write
      (Path    : String;
       Content : String;

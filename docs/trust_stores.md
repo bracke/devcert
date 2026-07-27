@@ -3,6 +3,13 @@
 Trust-store support is implemented through platform adapters with
 fingerprint-authoritative installation and removal.
 
+The host platform is taken from `Hostkit.Host.Current`, which each supported
+operating system answers for itself. It is not detected from the environment:
+`OSTYPE` is a shell variable that a spawned process does not inherit, so a
+check for it read every macOS as a Linux and selected the
+`update-ca-certificates` backend on a machine whose trust store is the
+keychain.
+
 Trust stores are selected by logical store name. Supported logical names are:
 
 * `system`

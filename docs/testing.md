@@ -41,6 +41,12 @@ reset the clock after use. Trust-store tests exercise selection, planning, and
 Linux install/remove mutation through an isolated anchor directory under `/tmp`
 without mutating host trust stores.
 
+Tests that mutate the system trust store run only where that store is a
+directory of the suite's own, through `DEVCERT_LINUX_TRUST_DIR`. On macOS and
+Windows `system` means the host's real keychain or certificate store, so the
+suite skips those assertions rather than touching it; the same applies to
+permission assertions on hosts whose directories carry no mode bits.
+
 Host platform mutation tests remain separated from the default suite. They
 require disposable host profiles, containers, virtual machines, or
 administrator-controlled environments.

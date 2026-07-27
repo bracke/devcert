@@ -5,6 +5,8 @@ with Ada.Strings.Fixed;
 
 with GNAT.OS_Lib;
 
+with Hostkit.Host;
+
 package body Devcert_Trust_Stores is
    use type GNAT.OS_Lib.String_Access;
 
@@ -108,19 +110,23 @@ package body Devcert_Trust_Stores is
       return True;
    end Kind_From_Name;
 
+   --  The host says which host it is. Sniffing the environment for it read every
+   --  macOS as a Linux: OSTYPE is a shell variable, not part of the environment a
+   --  spawned process inherits, so devcert reached for update-ca-certificates on a
+   --  machine whose trust store is the keychain.
    function Detect_Default_Target return Trust_Target is
+      use type Hostkit.Host.Kind;
    begin
-      if Ada.Environment_Variables.Exists ("OS")
-        and then Ada.Environment_Variables.Value ("OS") = "Windows_NT"
-      then
-         return Windows;
-      elsif Ada.Environment_Variables.Exists ("OSTYPE")
-        and then Ada.Environment_Variables.Value ("OSTYPE") = "darwin"
-      then
-         return MacOS;
-      else
-         return Linux;
-      end if;
+      case Hostkit.Host.Current is
+         when Hostkit.Host.Windows =>
+            return Windows;
+         when Hostkit.Host.MacOS =>
+            return MacOS;
+         when Hostkit.Host.Linux | Hostkit.Host.Unsupported =>
+            --  A host with no body of its own is treated as the POSIX case, which is
+            --  what the file-based backends assume.
+            return Linux;
+      end case;
    end Detect_Default_Target;
 
    function Default_Selection return Store_Selection is

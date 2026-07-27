@@ -23,4 +23,8 @@ package Devcert_Secure_Files is
    --  Has_Permissions this is a security invariant, not an expected-mode
    --  assertion: it is only meaningful for files that must stay private.
    function Accessible_By_Others (Path : String) return Boolean;
+
+   --  The same question for a directory. A directory's mode bits do not mean
+   --  what a file's mean, so hostkit answers them separately.
+   function Directory_Accessible_By_Others (Path : String) return Boolean;
 end Devcert_Secure_Files;

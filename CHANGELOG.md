@@ -22,3 +22,9 @@ Initial development release.
   and atomic writes end in a replacing rename instead of a delete followed by a
   rename.
 * CI builds and tests on macOS and Windows as well as Linux.
+* The host platform is answered by `hostkit` instead of sniffed from `OSTYPE`,
+  which is a shell variable a spawned process never inherits: devcert read every
+  macOS as a Linux and selected the `update-ca-certificates` backend on a
+  machine whose trust store is the keychain.
+* An unsafe CA root or `issued/` directory is reported on macOS as well, through
+  `Hostkit.Fs.Directory_Accessible_By_Others`.
