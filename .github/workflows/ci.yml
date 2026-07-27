@@ -165,10 +165,6 @@ jobs:
         run: alr --non-interactive build
 
       - name: Package the binary
-        # Not on Windows: tarlib's extraction side calls chown, mknod, symlink
-        # and friends, which mingw does not have, so libtarlib will not link
-        # there even though the packager never calls any of it.
-        if: runner.os != 'Windows'
         shell: bash
         working-directory: devcert
         # tar through tarlib and gzip through zlib, because repository tooling
@@ -186,7 +182,6 @@ jobs:
           ./tools/package_artifact/bin/package_artifact "${NAME}" "${NAME}.tar.gz"
 
       - name: Upload the binary
-        if: runner.os != 'Windows'
         uses: actions/upload-artifact@v7
         with:
           name: ${{ env.DEVCERT_ARTIFACT }}
