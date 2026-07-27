@@ -24,6 +24,10 @@ Initial development release.
 * CI builds and tests on macOS and Windows as well as Linux.
 * `devcert_tools platform-check` gained `macos-system` and `windows-system`
   targets, and each target refuses to run on any host but its own.
+* The NSS store covers Firefox. `$HOME/.pki/nssdb` is the database Chromium
+  reads and Firefox does not; devcert now also acts on every Firefox profile
+  holding a `cert9.db`, reporting each database and staying
+  fingerprint-authoritative per database on removal.
 * The host platform is answered by `hostkit` instead of sniffed from `OSTYPE`,
   which is a shell variable a spawned process never inherits: devcert read every
   macOS as a Linux and selected the `update-ca-certificates` backend on a

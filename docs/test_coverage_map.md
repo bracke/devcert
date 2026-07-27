@@ -78,5 +78,5 @@ Remaining coverage requiring external environments:
 * macOS Keychain mutation
 * Windows current-user certificate store mutation
 * distribution-specific Linux CA store mutation evidence
-* real NSS SQL database mutation
+* real NSS SQL database mutation, shared and per Firefox profile
 * real Java keystore mutation

@@ -1805,6 +1805,76 @@ package body Devcert_Test_Suite.Core_Tests is
    end Run_Test;
 
    overriding function Name
+     (Item : NSS_Discovery_Test) return AUnit.Message_String
+   is
+      pragma Unreferenced (Item);
+   begin
+      return AUnit.Format ("NSS database discovery");
+   end Name;
+
+   overriding procedure Run_Test (Item : in out NSS_Discovery_Test) is
+      pragma Unreferenced (Item);
+
+      Home    : constant String := Paths.Scratch ("devcert-aunit-nss-home");
+      Shared  : constant String := Home & "/.pki/nssdb";
+      Profile : constant String :=
+        Home & "/.mozilla/firefox/abcd1234.default-release";
+      Decoy   : constant String := Home & "/.mozilla/firefox/Crash Reports";
+
+      Saved_Home : constant String :=
+        (if Ada.Environment_Variables.Exists ("HOME")
+         then Ada.Environment_Variables.Value ("HOME") else "");
+
+      function Discovered (Path : String) return Boolean is
+      begin
+         for Index in 1 .. Devcert_Trust_Stores.NSS_Database_Count loop
+            if Devcert_Trust_Stores.NSS_Database_Path (Index) = Path then
+               return True;
+            end if;
+         end loop;
+         return False;
+      end Discovered;
+   begin
+      if Ada.Directories.Exists (Home) then
+         Ada.Directories.Delete_Tree (Home);
+      end if;
+      Ada.Environment_Variables.Clear ("DEVCERT_NSS_DB");
+      Ada.Directories.Create_Path (Shared);
+      Ada.Directories.Create_Path (Profile);
+      Ada.Directories.Create_Path (Decoy);
+      Devcert_Secure_Files.Atomic_Write (Profile & "/cert9.db", "not a real db");
+      Ada.Environment_Variables.Set ("HOME", Home);
+
+      --  Firefox reads none of the shared database, so finding only that one
+      --  would leave every Firefox on the machine untrusting of the CA.
+      Assert
+        (Discovered (Shared),
+         "the shared Chromium database is discovered");
+      Assert
+        (Discovered (Profile),
+         "a Firefox profile holding cert9.db is discovered");
+      Assert
+        (not Discovered (Decoy),
+         "a directory without cert9.db is not handed to certutil");
+
+      --  An explicit database is the whole answer, which is what the platform
+      --  runs rely on to stay off the real profiles.
+      Ada.Environment_Variables.Set ("DEVCERT_NSS_DB", Shared);
+      Assert
+        (Devcert_Trust_Stores.NSS_Database_Count = 1
+         and then Devcert_Trust_Stores.NSS_Database_Path (1) = Shared,
+         "DEVCERT_NSS_DB names one database instead of all of them");
+      Ada.Environment_Variables.Clear ("DEVCERT_NSS_DB");
+
+      if Saved_Home = "" then
+         Ada.Environment_Variables.Clear ("HOME");
+      else
+         Ada.Environment_Variables.Set ("HOME", Saved_Home);
+      end if;
+      Ada.Directories.Delete_Tree (Home);
+   end Run_Test;
+
+   overriding function Name
      (Item : Trust_Selection_Test) return AUnit.Message_String
    is
       pragma Unreferenced (Item);

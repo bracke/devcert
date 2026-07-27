@@ -33,6 +33,7 @@ package body Devcert_Test_Suite is
       Result.Add_Test (new Core_Tests.Certificate_Custom_PKCS12_Test);
       Result.Add_Test (new Core_Tests.Integration_Workflow_Test);
       Result.Add_Test (new Core_Tests.Trust_Target_Test);
+      Result.Add_Test (new Core_Tests.NSS_Discovery_Test);
       Result.Add_Test (new Core_Tests.Trust_Selection_Test);
       Result.Add_Test (new Core_Tests.Trust_Plan_Test);
       Result.Add_Test (new Core_Tests.Trust_Aggregate_Test);

@@ -268,6 +268,14 @@ package body Devcert_Trust_Stores is
    function NSS_Database return String;
    function Detect_Linux_Backend return Linux_System_Backend;
 
+   Max_NSS_Databases : constant := 16;
+   type NSS_Database_List is
+     array (1 .. Max_NSS_Databases) of Unbounded_String;
+
+   procedure Discover_NSS_Databases
+     (Databases : out NSS_Database_List;
+      Count     : out Natural);
+
    function Configured_Linux_Trust_Dir return String is
    begin
       if Ada.Environment_Variables.Exists ("DEVCERT_LINUX_TRUST_DIR") then
@@ -305,7 +313,7 @@ package body Devcert_Trust_Stores is
          when NSS_Store =>
             if Locate ("certutil") = "" then
                return Tool_Missing;
-            elsif NSS_Database = "" or else not Ada.Directories.Exists (NSS_Database) then
+            elsif NSS_Database_Count = 0 then
                return Not_Installed;
             else
                return Available;
@@ -710,6 +718,120 @@ package body Devcert_Trust_Stores is
       end if;
    end NSS_Database;
 
+   --  Where the host keeps Firefox profiles. Firefox does not read the shared
+   --  database under ~/.pki/nssdb -- that one is Chromium's -- and keeps a
+   --  cert9.db of its own per profile, so a certificate installed only into the
+   --  shared database is trusted by Chromium and by nothing else.
+   function Firefox_Profile_Root return String is
+      function Env (Name : String) return String is
+        (if Ada.Environment_Variables.Exists (Name)
+         then Ada.Environment_Variables.Value (Name)
+         else "");
+
+      Home : constant String := Env ("HOME");
+   begin
+      case Hostkit.Host.Current is
+         when Hostkit.Host.Windows =>
+            return (if Env ("APPDATA") = "" then ""
+                    else Env ("APPDATA") & "\Mozilla\Firefox\Profiles");
+         when Hostkit.Host.MacOS =>
+            return (if Home = "" then ""
+                    else Home & "/Library/Application Support/Firefox/Profiles");
+         when others =>
+            return (if Home = "" then "" else Home & "/.mozilla/firefox");
+      end case;
+   end Firefox_Profile_Root;
+
+   procedure Add_Database
+     (Databases : in out NSS_Database_List;
+      Count     : in out Natural;
+      Path      : String) is
+   begin
+      if Path /= "" and then Count < Max_NSS_Databases
+        and then Ada.Directories.Exists (Path)
+      then
+         Count := Count + 1;
+         Databases (Count) := Ada.Strings.Unbounded.To_Unbounded_String (Path);
+      end if;
+   end Add_Database;
+
+   procedure Discover_NSS_Databases
+     (Databases : out NSS_Database_List;
+      Count     : out Natural)
+   is
+      Root : constant String := Firefox_Profile_Root;
+   begin
+      Databases := [others => Ada.Strings.Unbounded.Null_Unbounded_String];
+      Count := 0;
+
+      --  An explicit database is the whole answer: a caller who names one is
+      --  pointing at a disposable profile, not asking devcert to go looking.
+      if Ada.Environment_Variables.Exists ("DEVCERT_NSS_DB") then
+         Add_Database
+           (Databases, Count,
+            Ada.Environment_Variables.Value ("DEVCERT_NSS_DB"));
+         return;
+      end if;
+
+      Add_Database (Databases, Count, NSS_Database);
+
+      if Root = "" or else not Ada.Directories.Exists (Root) then
+         return;
+      end if;
+
+      declare
+         Search : Ada.Directories.Search_Type;
+         Item   : Ada.Directories.Directory_Entry_Type;
+      begin
+         Ada.Directories.Start_Search
+           (Search,
+            Directory => Root,
+            Pattern   => "*",
+            Filter    =>
+              [Ada.Directories.Directory     => True,
+               Ada.Directories.Ordinary_File => False,
+               Ada.Directories.Special_File  => False]);
+         while Ada.Directories.More_Entries (Search) loop
+            Ada.Directories.Get_Next_Entry (Search, Item);
+            declare
+               Name : constant String := Ada.Directories.Simple_Name (Item);
+               Path : constant String := Ada.Directories.Full_Name (Item);
+            begin
+               --  A profile is a directory holding cert9.db; anything else in
+               --  there is not a database and must not be handed to certutil.
+               if Name /= "." and then Name /= ".."
+                 and then Ada.Directories.Exists (Path & "/cert9.db")
+               then
+                  Add_Database (Databases, Count, Path);
+               end if;
+            end;
+         end loop;
+         Ada.Directories.End_Search (Search);
+      exception
+         when others =>
+            null;
+      end;
+   end Discover_NSS_Databases;
+
+   function NSS_Database_Count return Natural is
+      Databases : NSS_Database_List;
+      Count     : Natural;
+   begin
+      Discover_NSS_Databases (Databases, Count);
+      return Count;
+   end NSS_Database_Count;
+
+   function NSS_Database_Path (Index : Positive) return String is
+      Databases : NSS_Database_List;
+      Count     : Natural;
+   begin
+      Discover_NSS_Databases (Databases, Count);
+      if Index > Count then
+         return "";
+      end if;
+      return Ada.Strings.Unbounded.To_String (Databases (Index));
+   end NSS_Database_Path;
+
    procedure Apply_NSS
      (Operation   : Action;
       Certificate : String;
@@ -717,10 +839,38 @@ package body Devcert_Trust_Stores is
       Success     : out Boolean;
       Message     : out Unbounded_String)
    is
-      Certutil : constant String := Locate ("certutil");
-      DB       : constant String := NSS_Database;
-      Alias    : constant String := Fingerprint_Alias (Fingerprint);
-      Ran      : Boolean := False;
+      Certutil  : constant String := Locate ("certutil");
+      Alias     : constant String := Fingerprint_Alias (Fingerprint);
+      Databases : NSS_Database_List;
+      Found     : Natural;
+      Failures  : Natural := 0;
+      Combined  : Unbounded_String;
+
+      DB  : Unbounded_String;
+      Ran : Boolean := False;
+
+      function Database return String is
+        (Ada.Strings.Unbounded.To_String (DB));
+
+      --  Absent and present-but-different are not the same answer: an anchor
+      --  missing from one profile is nothing to remove there, while one whose
+      --  stored certificate differs is somebody else's and must be left alone.
+      function Alias_Present return Boolean is
+         Output : Unbounded_String;
+         Listed : Boolean := False;
+      begin
+         Run_Capture
+           (Certutil,
+            [new String'("-L"),
+             new String'("-d"),
+             new String'("sql:" & Database),
+             new String'("-n"),
+             new String'(Alias),
+             new String'("-a")],
+            Listed,
+            Output);
+         return Listed;
+      end Alias_Present;
 
       function NSS_Contains_Certificate return Boolean is
          Output : Unbounded_String;
@@ -730,7 +880,7 @@ package body Devcert_Trust_Stores is
            (Certutil,
             [new String'("-L"),
              new String'("-d"),
-             new String'("sql:" & DB),
+             new String'("sql:" & Database),
              new String'("-n"),
              new String'(Alias),
              new String'("-a")],
@@ -741,62 +891,86 @@ package body Devcert_Trust_Stores is
              (Ada.Strings.Unbounded.To_String (Output),
               Read_Text_File (Certificate));
       end NSS_Contains_Certificate;
+      procedure Note (Text : String) is
+      begin
+         if Ada.Strings.Unbounded.Length (Combined) > 0 then
+            Ada.Strings.Unbounded.Append (Combined, "; ");
+         end if;
+         Ada.Strings.Unbounded.Append (Combined, Text);
+      end Note;
    begin
       Success := False;
+      Discover_NSS_Databases (Databases, Found);
+
       if Certutil = "" then
          Message :=
            Ada.Strings.Unbounded.To_Unbounded_String ("certutil is not installed");
          return;
-      elsif DB = "" or else not Ada.Directories.Exists (DB) then
+      elsif Found = 0 then
          Message :=
            Ada.Strings.Unbounded.To_Unbounded_String ("NSS database is missing");
          return;
       end if;
 
-      case Operation is
-         when Install =>
-            Run
-              (Certutil,
-               [new String'("-A"),
-                new String'("-d"),
-                new String'("sql:" & DB),
-                new String'("-n"),
-                new String'(Alias),
-                new String'("-t"),
-                new String'("C,,"),
-                new String'("-i"),
-                new String'(Certificate)],
-               Ran);
-            Success := Ran;
-            if Success and then not NSS_Contains_Certificate then
-               Success := False;
-               Ran := False;
-            end if;
-            Message :=
-              Ada.Strings.Unbounded.To_Unbounded_String
-                ((if Ran then "installed" else "failed to install")
-                 & " NSS trust anchor " & Alias);
-         when Remove =>
-            if not NSS_Contains_Certificate then
-               Message :=
-                 Ada.Strings.Unbounded.To_Unbounded_String
-                   ("NSS trust anchor fingerprint mismatch; refusing removal");
-               return;
-            end if;
-            Run
-              (Certutil,
-               [new String'("-D"),
-                new String'("-d"),
-                new String'("sql:" & DB),
-                new String'("-n"),
-                new String'(Alias)],
-               Ran);
-            Success := Ran;
-            Message :=
-              Ada.Strings.Unbounded.To_Unbounded_String
-                ((if Ran then "removed" else "failed to remove")
-                 & " NSS trust anchor " & Alias);
-      end case;
+      --  Every database the host has: the shared one Chromium reads, and one
+      --  per Firefox profile, which reads nothing else.
+      for Index in 1 .. Found loop
+         DB := Databases (Index);
+         Ran := False;
+
+         case Operation is
+            when Install =>
+               Run
+                 (Certutil,
+                  [new String'("-A"),
+                   new String'("-d"),
+                   new String'("sql:" & Database),
+                   new String'("-n"),
+                   new String'(Alias),
+                   new String'("-t"),
+                   new String'("C,,"),
+                   new String'("-i"),
+                   new String'(Certificate)],
+                  Ran);
+               if Ran and then not NSS_Contains_Certificate then
+                  Ran := False;
+               end if;
+               if not Ran then
+                  Failures := Failures + 1;
+               end if;
+               Note
+                 ((if Ran then "installed" else "failed to install")
+                  & " NSS trust anchor " & Alias & " in " & Database);
+
+            when Remove =>
+               if not Alias_Present then
+                  Note ("no NSS trust anchor " & Alias & " in " & Database);
+               elsif not NSS_Contains_Certificate then
+                  Failures := Failures + 1;
+                  Note
+                    ("NSS trust anchor fingerprint mismatch in " & Database
+                     & "; refusing removal");
+               else
+                  Run
+                    (Certutil,
+                     [new String'("-D"),
+                      new String'("-d"),
+                      new String'("sql:" & Database),
+                      new String'("-n"),
+                      new String'(Alias)],
+                     Ran);
+                  if not Ran then
+                     Failures := Failures + 1;
+                  end if;
+                  Note
+                    ((if Ran then "removed" else "failed to remove")
+                     & " NSS trust anchor " & Alias & " in " & Database);
+               end if;
+         end case;
+      end loop;
+
+      Success := Failures = 0;
+      Message := Combined;
    end Apply_NSS;
 
    procedure Apply_MacOS

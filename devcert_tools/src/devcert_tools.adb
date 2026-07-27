@@ -895,6 +895,9 @@ procedure Devcert_Tools is
       Require_Row ("PKCS#12 bundle");
       Require_Row ("Linux system trust");
       Require_Row ("NSS trust");
+      --  Firefox reads its own per-profile database, never the shared one, so
+      --  covering it is a claim of its own rather than a detail of NSS.
+      Require_Row ("Firefox trust");
       Require_Row ("Java trust");
       Require_Row ("macOS trust");
       Require_Row ("Windows trust");

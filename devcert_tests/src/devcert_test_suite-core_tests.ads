@@ -134,6 +134,12 @@ package Devcert_Test_Suite.Core_Tests is
    overriding function Name (Item : Trust_Target_Test) return AUnit.Message_String;
    overriding procedure Run_Test (Item : in out Trust_Target_Test);
 
+   type NSS_Discovery_Test is
+     new AUnit.Simple_Test_Cases.Test_Case with null record;
+   overriding function Name
+     (Item : NSS_Discovery_Test) return AUnit.Message_String;
+   overriding procedure Run_Test (Item : in out NSS_Discovery_Test);
+
    type Trust_Selection_Test is
      new AUnit.Simple_Test_Cases.Test_Case with null record;
    overriding function Name

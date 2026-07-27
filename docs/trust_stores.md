@@ -76,9 +76,29 @@ The Java adapter has been smoke-tested against a temporary keystore using
 
 ## NSS
 
-NSS trust stores are updated with `certutil`. Set `DEVCERT_NSS_DB` to a specific
-NSS database directory; otherwise devcert tries `$HOME/.pki/nssdb`. The adapter
-uses SQL database syntax and fingerprint-derived aliases.
+NSS trust stores are updated with `certutil`. The adapter uses SQL database
+syntax and fingerprint-derived aliases.
+
+There is no single NSS database. `$HOME/.pki/nssdb` is the shared one Chromium
+reads; Firefox reads none of it and keeps a `cert9.db` of its own in every
+profile. A certificate installed only into the shared database is therefore
+trusted by Chromium and by no Firefox on the machine. devcert acts on all of
+them: the shared database, plus each profile directory holding a `cert9.db`
+under
+
+```text
+$HOME/.mozilla/firefox                                    (Linux)
+$HOME/Library/Application Support/Firefox/Profiles        (macOS)
+%APPDATA%\Mozilla\Firefox\Profiles                        (Windows)
+```
+
+Every database is reported separately, and the store counts as installed only
+when all of them took it. Removal stays fingerprint-authoritative per database:
+a profile that does not carry the anchor is skipped, and one whose stored
+certificate differs is refused rather than overwritten.
+
+`DEVCERT_NSS_DB` names one database instead of all of them, which is what the
+platform runs use to stay off real profiles.
 
 Removal is fingerprint-authoritative. Linux file-based backends compare the
 stored public certificate with the active CA certificate before deleting a
