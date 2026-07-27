@@ -3,6 +3,10 @@
 Native trust-store mutation tests require disposable systems or user profiles.
 They are intentionally separate from the default AUnit suite.
 
+Completed runs are recorded in
+[platform_evidence.md](platform_evidence.md), which also states which platforms
+have not been validated.
+
 ## Required Evidence
 
 For each platform run, record:

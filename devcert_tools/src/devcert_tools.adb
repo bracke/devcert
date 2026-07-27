@@ -818,6 +818,8 @@ procedure Devcert_Tools is
       Require_Doc ("docs/testing.md");
       Require_Doc ("docs/release_process.md");
       Require_Doc ("docs/mkcert_parity.md");
+      Require_Doc ("docs/platform_validation.md");
+      Require_Doc ("docs/platform_evidence.md");
       Require_Doc ("docs/final_acceptance.md");
       Put_Line ("documentation passed");
    end Run_Documentation_Check;

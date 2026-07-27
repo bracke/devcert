@@ -109,4 +109,6 @@ Detailed documentation:
 * [Testing](docs/testing.md)
 * [Release process](docs/release_process.md)
 * [mkcert parity](docs/mkcert_parity.md)
+* [Platform validation](docs/platform_validation.md) and its
+  [evidence](docs/platform_evidence.md)
 * [Final acceptance](docs/final_acceptance.md)
