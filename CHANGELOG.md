@@ -32,7 +32,7 @@ Initial development release.
   code rather than the general trust-store one. The aggregate state flattened
   every failure into an error, so the commonest failure of all -- a system
   store wanting elevated privileges -- was indistinguishable from an unusable
-  one. The unused localization exit code is gone and `10` is free again.
+  one.
 * The mode read behind `doctor`'s expected-mode reporting falls back to BSD
   `stat -f %Lp` where GNU `stat -c %a` is rejected, so it answers on macOS
   instead of silently reporting nothing.

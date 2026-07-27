@@ -106,10 +106,6 @@ Stable exit codes:
 * `8` partial success
 * `9` unsupported platform or feature
 
-`10` is the next code to be assigned. A localization error was declared there
-once and never produced, because a missing or malformed catalog falls back to
-bare message identifiers rather than failing; the number is free again.
-
 ## Diagnosing Failures
 
 `devcert doctor` is the diagnostic entry point. It reports the state of the CA
