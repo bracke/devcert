@@ -7,8 +7,10 @@ with Ada.Text_IO;
 with GNAT.OS_Lib;
 
 with Hostkit.Fs;
+with Hostkit.Host;
 
 package body Devcert_Secure_Files is
+   use type Hostkit.Host.Kind;
    use type Ada.Streams.Stream_Element_Offset;
    use type GNAT.OS_Lib.String_Access;
 
@@ -94,10 +96,9 @@ package body Devcert_Secure_Files is
       return Result (1 .. Last);
    end Read;
 
-   --  Best-effort expected-mode reading: `stat -c %a` is GNU syntax, so this
-   --  answers on Linux and returns "" elsewhere (BSD stat wants -f %Lp, Windows
-   --  has no stat at all). Callers must treat "" as "unknown", never as "safe";
-   --  the security invariant is Accessible_By_Others, which asks the host.
+   --  Best-effort expected-mode reading, for hosts whose files carry a POSIX
+   --  mode at all. Callers must treat "" as "unknown", never as "safe"; the
+   --  security invariant is Accessible_By_Others, which asks the host.
    function Permissions (Path : String) return String is
       Stat        : constant String := Locate ("stat");
       Output_File : constant String := Path & ".mode";
@@ -130,6 +131,14 @@ package body Devcert_Secure_Files is
          return "";
       end Ask;
    begin
+      --  A host without POSIX mode bits has no answer to give, and a `stat`
+      --  that happens to be on PATH there -- MSYS ships one -- reports its own
+      --  rendering of an ACL. Taking that as a mode made every CA look unsafe
+      --  on Windows, and every command that needs a usable CA fail with it.
+      if Hostkit.Host.Current = Hostkit.Host.Windows then
+         return "";
+      end if;
+
       if Stat = "" or else not Ada.Directories.Exists (Path) then
          return "";
       end if;
