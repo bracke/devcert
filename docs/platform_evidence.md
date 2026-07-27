@@ -49,7 +49,8 @@ detected by comparing `OSTYPE` to `darwin`, and `OSTYPE` is a shell variable a
 spawned process does not inherit, so every macOS was treated as a Linux. The
 adapter is on the default path there now and has never been executed on a Mac.
 The CI matrix does not close this: it builds and runs the suite on macOS, but
-skips every assertion that would mutate the system store.
+skips every assertion that would mutate the system store. What closes it is a
+run of `devcert_tools platform-check macos-system` on a Mac, recorded here.
 
 ## Windows System Store
 

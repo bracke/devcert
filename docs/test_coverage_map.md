@@ -69,7 +69,8 @@ assumes.
 ## External Platform Coverage
 
 An opt-in Linux system mutation check is provided by
-`devcert_tools platform-check linux-system`. It is not part of the default
+`devcert_tools platform-check linux-system` and `macos-system`, each of which
+refuses to run on any host but its own. It is not part of the default
 release gate because it mutates the host trust store.
 
 Remaining coverage requiring external environments:

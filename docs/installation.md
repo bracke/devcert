@@ -17,8 +17,8 @@ The executable is written to `bin/devcert`. The build's post-build actions also
 bundle the generated `i18n` locale data into `share/i18n`.
 
 The required runtime dependencies are `cryptolib`, `hostkit`, `i18n`,
-`messages`, and `terminal_styles`. Tooling depends on `project_tools` and
-`cryptolib`.
+`messages`, and `terminal_styles`. Tooling depends on `project_tools`,
+`cryptolib`, and `hostkit`.
 Development manifests pin them to sibling workspace crates. Release manifests
 must not contain local path pins.
 

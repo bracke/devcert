@@ -36,6 +36,24 @@ trust store and may require elevated privileges.
 Validate `update-ca-certificates`, `update-ca-trust`, and `trust anchor`
 backends where available.
 
+## macOS System Store
+
+Run on a Mac, on a disposable account or machine:
+
+```text
+DEVCERT_RUN_PLATFORM_TRUST_TESTS=1 \
+  devcert_tools platform-check macos-system
+```
+
+The same sequence as the Linux target, against the keychain through the
+`security` command. Adding the root certificate to the system keychain asks for
+authentication, so run it where that can be answered.
+
+Each target refuses to run anywhere but on its own host: the system store is
+whatever the machine underfoot has, so running the macOS check on Linux would
+mutate the Linux store and record the result as macOS. The host is taken from
+`hostkit`, which no environment variable can talk into the wrong answer.
+
 ## NSS
 
 Use a disposable NSS SQL database:

@@ -20,6 +20,8 @@ with Project_Tools.Release_Checks;
 with Project_Tools.Text;
 with Project_Tools.Tree_Checks;
 
+with Hostkit.Host;
+
 procedure Devcert_Tools is
    use Ada.Text_IO;
    use Ada.Strings.Unbounded;
@@ -452,11 +454,14 @@ procedure Devcert_Tools is
         (Project_Root & "/devcert_tools/alire.toml", "project_tools");
       Require_Release_Dependency
         (Project_Root & "/devcert_tools/alire.toml", "cryptolib");
+      Require_Release_Dependency
+        (Project_Root & "/devcert_tools/alire.toml", "hostkit");
       Require_Only_Dependencies
         (State,
          Project_Root & "/devcert_tools/alire.toml",
          [To_Unbounded_String ("project_tools"),
-          To_Unbounded_String ("cryptolib")],
+          To_Unbounded_String ("cryptolib"),
+          To_Unbounded_String ("hostkit")],
          "tooling manifest");
       Require_Workspace_Pin
         (Project_Root & "/devcert_tools/alire.toml",
@@ -466,6 +471,10 @@ procedure Devcert_Tools is
         (Project_Root & "/devcert_tools/alire.toml",
          "cryptolib",
          "../../cryptolib");
+      Require_Workspace_Pin
+        (Project_Root & "/devcert_tools/alire.toml",
+         "hostkit",
+         "../../hostkit");
 
       Require_Contains
         (Project_Root & "/devcert_tests/alire.toml",
@@ -961,11 +970,21 @@ procedure Devcert_Tools is
       Put_Line ("dist staged at " & Target);
    end Run_Dist;
 
-   procedure Run_Linux_System_Platform_Check is
+   --  One system-store check, told which host it belongs to. The host must be
+   --  that host: the system store is whatever the machine underfoot has, so
+   --  running the macOS check on Linux would mutate the Linux store and report
+   --  it as a macOS result. Hostkit answers from the body the build chose, so
+   --  no environment variable can talk it into the wrong one.
+   procedure Run_System_Platform_Check
+     (Target : String;
+      Host   : Hostkit.Host.Kind)
+   is
+      use type Hostkit.Host.Kind;
+
       State       : Check_State;
       Devcert_Bin : constant String := Project_Root & "/bin/devcert";
       CA_Root     : constant String :=
-        Project_Tools.Files.Temp_Dir & "/devcert-platform-linux-system";
+        Project_Tools.Files.Temp_Dir & "/devcert-platform-" & Target;
       Install_Status   : Integer;
       Doctor_Status    : Integer;
       Uninstall_Status : Integer;
@@ -982,6 +1001,14 @@ procedure Devcert_Tools is
          Require_Success (State, "platform-check");
       end if;
 
+      if Hostkit.Host.Current /= Host then
+         Fail
+           (State,
+            "platform-check",
+            Target & " must be run on that host, not on this one");
+         Require_Success (State, "platform-check");
+      end if;
+
       Project_Tools.Files.Require_File
         (Devcert_Bin,
          "build bin/devcert before running platform trust checks");
@@ -990,11 +1017,11 @@ procedure Devcert_Tools is
          Project_Tools.Files.Delete_Tree (CA_Root);
       end if;
 
-      Put_Line ("platform-check linux-system using CA root " & CA_Root);
+      Put_Line ("platform-check " & Target & " using CA root " & CA_Root);
 
       Install_Status :=
         Project_Tools.Processes.Run_Status
-          ("linux system trust install",
+          (Target & " trust install",
            Project_Root,
            Devcert_Bin,
            [new String'("--ca-root"),
@@ -1005,7 +1032,7 @@ procedure Devcert_Tools is
 
       Doctor_Status :=
         Project_Tools.Processes.Run_Status
-          ("linux system trust doctor",
+          (Target & " trust doctor",
            Project_Root,
            Devcert_Bin,
            [new String'("--ca-root"),
@@ -1014,7 +1041,7 @@ procedure Devcert_Tools is
 
       Uninstall_Status :=
         Project_Tools.Processes.Run_Status
-          ("linux system trust uninstall",
+          (Target & " trust uninstall",
            Project_Root,
            Devcert_Bin,
            [new String'("--ca-root"),
@@ -1024,13 +1051,13 @@ procedure Devcert_Tools is
             new String'("system")]);
 
       if Install_Status /= 0 then
-         Fail (State, "platform-check", "linux system install failed");
+         Fail (State, "platform-check", Target & " install failed");
       end if;
       if Doctor_Status /= 0 then
-         Fail (State, "platform-check", "linux platform CA validation failed");
+         Fail (State, "platform-check", Target & " CA validation failed");
       end if;
       if Uninstall_Status /= 0 then
-         Fail (State, "platform-check", "linux system uninstall failed");
+         Fail (State, "platform-check", Target & " uninstall failed");
       end if;
 
       if Project_Tools.Files.Directory_Exists (CA_Root) then
@@ -1038,14 +1065,14 @@ procedure Devcert_Tools is
       end if;
 
       Require_Success (State, "platform-check");
-      Put_Line ("platform-check linux-system passed");
+      Put_Line ("platform-check " & Target & " passed");
    exception
       when others =>
          if Project_Tools.Files.Directory_Exists (CA_Root) then
             Project_Tools.Files.Delete_Tree (CA_Root);
          end if;
          raise;
-   end Run_Linux_System_Platform_Check;
+   end Run_System_Platform_Check;
 
    procedure Run_Platform_Check is
       Target : constant String :=
@@ -1054,11 +1081,13 @@ procedure Devcert_Tools is
          else "");
    begin
       if Target = "linux-system" then
-         Run_Linux_System_Platform_Check;
+         Run_System_Platform_Check ("linux-system", Hostkit.Host.Linux);
+      elsif Target = "macos-system" then
+         Run_System_Platform_Check ("macos-system", Hostkit.Host.MacOS);
       else
          Put_Line
            (Standard_Error,
-            "usage: devcert_tools platform-check linux-system");
+            "usage: devcert_tools platform-check linux-system|macos-system");
          Ada.Command_Line.Set_Exit_Status (Ada.Command_Line.Failure);
       end if;
    end Run_Platform_Check;
@@ -1077,7 +1106,7 @@ procedure Devcert_Tools is
       Put_Line ("  documentation");
       Put_Line ("  parity-check");
       Put_Line ("  tooling-tests");
-      Put_Line ("  platform-check linux-system");
+      Put_Line ("  platform-check linux-system|macos-system");
    end Print_Usage;
 
    Command : constant String :=

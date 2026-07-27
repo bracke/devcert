@@ -12,11 +12,19 @@ project_tools = "*"
 [[depends-on]]
 cryptolib = "*"
 
+# platform-check refuses to run a host's trust check on a different host, and
+# the host says which it is.
+[[depends-on]]
+hostkit = "*"
+
 [[pins]]
 project_tools = { path = "../../project_tools" }
 
 [[pins]]
 cryptolib = { path = "../../cryptolib" }
+
+[[pins]]
+hostkit = { path = "../../hostkit" }
 
 [build-profiles]
 "*" = "development"
