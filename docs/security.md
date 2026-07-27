@@ -5,7 +5,14 @@ configured state directory and is never installed into operating system,
 browser, Java, or NSS trust stores.
 
 Private-key files and PKCS#12 bundles are written atomically and with owner-only
-permissions where the platform supports them. Logs and JSON output must not
+permissions where the platform supports them. The write ends in a replacing
+rename through `hostkit`, which is a single step on both POSIX and Windows;
+`doctor` reports a CA whose private key or metadata is readable by anyone but
+the owner as a CA state failure. That question is put to the host through
+`Hostkit.Fs.Accessible_By_Others` rather than to a `stat` command, whose options
+differ between GNU and BSD, so it holds on macOS as well as Linux. Windows
+scopes access by ACL instead of mode bits, and the check declines to answer
+there rather than guessing. Logs and JSON output must not
 contain private keys, passwords, passphrases, PKCS#12 bytes, or other secrets.
 
 Trust-store installation may require elevated privileges. Trust-store removal is

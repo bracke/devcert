@@ -84,12 +84,18 @@ package body Devcert.CA_Store is
         or else not Has_Issued
       then
          return Incomplete;
+      --  Two questions, not one. Has_Permissions asserts the expected mode and
+      --  can only answer where a GNU `stat` is on PATH; Accessible_By_Others
+      --  asks the host directly whether the secrets are exposed, which is the
+      --  invariant that matters and which also holds on macOS.
       elsif not Devcert_Secure_Files.Has_Permissions (Root, "700")
         or else not Devcert_Secure_Files.Has_Permissions (Private_Key_Path, "600")
         or else not Devcert_Secure_Files.Has_Permissions (Certificate_Path, "644")
         or else not Devcert_Secure_Files.Has_Permissions (Metadata_Path, "600")
         or else not Devcert_Secure_Files.Has_Permissions
           (Devcert_State.Issued_Directory, "700")
+        or else Devcert_Secure_Files.Accessible_By_Others (Private_Key_Path)
+        or else Devcert_Secure_Files.Accessible_By_Others (Metadata_Path)
       then
          return Unsafe_Permissions;
       end if;

@@ -15,5 +15,10 @@ devcert = "*"
 [[pins]]
 devcert = { path = ".." }
 
+# devcert depends on hostkit, but Alire honours pins only in the root crate, so
+# this root must pin it too or the solver cannot see the workspace copy.
+[[pins]]
+hostkit = { path = "../../hostkit" }
+
 [build-profiles]
 "*" = "development"

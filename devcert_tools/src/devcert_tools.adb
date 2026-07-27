@@ -424,6 +424,7 @@ procedure Devcert_Tools is
       Require_Release_Dependencies
         (Project_Root & "/alire.toml",
          [To_Unbounded_String ("cryptolib"),
+          To_Unbounded_String ("hostkit"),
           To_Unbounded_String ("i18n"),
           To_Unbounded_String ("messages"),
           To_Unbounded_String ("terminal_styles")]);
@@ -431,11 +432,13 @@ procedure Devcert_Tools is
         (State,
          Project_Root & "/alire.toml",
          [To_Unbounded_String ("cryptolib"),
+          To_Unbounded_String ("hostkit"),
           To_Unbounded_String ("i18n"),
           To_Unbounded_String ("messages"),
           To_Unbounded_String ("terminal_styles")],
          "runtime manifest");
       Require_Workspace_Pin (Project_Root & "/alire.toml", "cryptolib", "../cryptolib");
+      Require_Workspace_Pin (Project_Root & "/alire.toml", "hostkit", "../hostkit");
       Require_Workspace_Pin (Project_Root & "/alire.toml", "i18n", "../i18n");
       Require_Workspace_Pin (Project_Root & "/alire.toml", "messages", "../messages");
       Require_Workspace_Pin

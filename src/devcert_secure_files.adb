@@ -1,9 +1,12 @@
 with Ada.Directories;
+with Ada.IO_Exceptions;
 with Ada.Streams;
 with Ada.Streams.Stream_IO;
 with Ada.Text_IO;
 
 with GNAT.OS_Lib;
+
+with Hostkit.Fs;
 
 package body Devcert_Secure_Files is
    use type Ada.Streams.Stream_Element_Offset;
@@ -73,6 +76,10 @@ package body Devcert_Secure_Files is
       return Result (1 .. Last);
    end Read;
 
+   --  Best-effort expected-mode reading: `stat -c %a` is GNU syntax, so this
+   --  answers on Linux and returns "" elsewhere (BSD stat wants -f %Lp, Windows
+   --  has no stat at all). Callers must treat "" as "unknown", never as "safe";
+   --  the security invariant is Accessible_By_Others, which asks the host.
    function Permissions (Path : String) return String is
       Stat        : constant String := Locate ("stat");
       Output_File : constant String := Path & ".mode";
@@ -111,6 +118,11 @@ package body Devcert_Secure_Files is
       return Actual = "" or else Actual = Mode;
    end Has_Permissions;
 
+   function Accessible_By_Others (Path : String) return Boolean is
+   begin
+      return Hostkit.Fs.Accessible_By_Others (Path);
+   end Accessible_By_Others;
+
    procedure Atomic_Write
      (Path    : String;
       Content : String;
@@ -129,10 +141,12 @@ package body Devcert_Secure_Files is
 
       Set_Permissions (Temp, (if Secret then "600" else "644"));
 
-      if Ada.Directories.Exists (Path) then
-         Ada.Directories.Delete_File (Path);
+      --  Replacing rename: rename(2) on POSIX, MoveFileEx with
+      --  MOVEFILE_REPLACE_EXISTING on Windows. Deleting Path first and renaming
+      --  over the gap is not atomic -- an interrupted write left no file at all.
+      if not Hostkit.Fs.Replace_File (Temp, Path) then
+         raise Ada.IO_Exceptions.Use_Error with "could not replace " & Path;
       end if;
-      Ada.Directories.Rename (Temp, Path);
    exception
       when others =>
          if Ada.Text_IO.Is_Open (File) then
@@ -170,10 +184,12 @@ package body Devcert_Secure_Files is
 
       Set_Permissions (Temp, (if Secret then "600" else "644"));
 
-      if Ada.Directories.Exists (Path) then
-         Ada.Directories.Delete_File (Path);
+      --  Replacing rename: rename(2) on POSIX, MoveFileEx with
+      --  MOVEFILE_REPLACE_EXISTING on Windows. Deleting Path first and renaming
+      --  over the gap is not atomic -- an interrupted write left no file at all.
+      if not Hostkit.Fs.Replace_File (Temp, Path) then
+         raise Ada.IO_Exceptions.Use_Error with "could not replace " & Path;
       end if;
-      Ada.Directories.Rename (Temp, Path);
    exception
       when others =>
          if Ada.Streams.Stream_IO.Is_Open (File) then

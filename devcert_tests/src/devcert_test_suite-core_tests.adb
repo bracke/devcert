@@ -1157,6 +1157,10 @@ package body Devcert_Test_Suite.Core_Tests is
         (Devcert_Secure_Files.Has_Permissions (Path, "600"),
          "secret atomic write applies private permissions");
 
+      Assert
+        (not Devcert_Secure_Files.Accessible_By_Others (Path),
+         "secret atomic write leaves nothing readable by others");
+
       Devcert_Secure_Files.Atomic_Write (Path, "beta", Secret => False);
       Assert
         (Devcert_Secure_Files.Read (Path) = "beta",
@@ -1164,6 +1168,17 @@ package body Devcert_Test_Suite.Core_Tests is
       Assert
         (Devcert_Secure_Files.Has_Permissions (Path, "644"),
          "public atomic write applies public certificate permissions");
+
+      --  Whether "readable by others" is expressible at all is a host fact:
+      --  POSIX has the mode bits, Windows answers by ACL and Hostkit declines
+      --  to guess there. The public write just made is the probe, so the host
+      --  itself decides whether the exposed case can be asserted.
+      if Devcert_Secure_Files.Accessible_By_Others (Path) then
+         Devcert_Secure_Files.Atomic_Write (Path, "gamma", Secret => True);
+         Assert
+           (not Devcert_Secure_Files.Accessible_By_Others (Path),
+            "rewriting a public file as secret withdraws access from others");
+      end if;
       Assert
         (not Devcert_Secure_Files.Exists (Path & ".tmp"),
          "atomic overwrite leaves no temporary file");

@@ -14,6 +14,12 @@ gnat_native = "=15.2.1"
 [[depends-on]]
 cryptolib = "*"
 
+# Facts the host answers differently: the mode bits of a private key, and a
+# rename that replaces an existing file. GNAT answers both wrong on some host
+# rather than failing -- see the comments in Hostkit.Fs.
+[[depends-on]]
+hostkit = "*"
+
 [[depends-on]]
 i18n = "*"
 
@@ -25,6 +31,9 @@ terminal_styles = "*"
 
 [[pins]]
 cryptolib = { path = "../cryptolib" }
+
+[[pins]]
+hostkit = { path = "../hostkit" }
 
 [[pins]]
 i18n = { path = "../i18n" }
