@@ -1,0 +1,34 @@
+name = "package_artifact"
+description = "Packages a built devcert into one tar.gz for host validation"
+version = "0.1.0-dev"
+
+authors = ["Bent Bracke"]
+maintainers = ["Bent Bracke <bent@bracke.dk>"]
+maintainers-logins = ["bracke"]
+licenses = "MIT"
+tags = ["tools", "packaging"]
+
+executables = ["package_artifact"]
+
+[[depends-on]]
+gnat_native = "=15.2.1"
+
+[[depends-on]]
+tarlib = "*"
+
+[[depends-on]]
+zlib = "*"
+
+[[pins]]
+tarlib = { path = "../../../tarlib" }
+
+[[pins]]
+zlib = { path = "../../../zlib" }
+
+# zlib depends on cryptolib, and Alire honours pins only in the root crate, so
+# this root has to pin it as well.
+[[pins]]
+cryptolib = { path = "../../../cryptolib" }
+
+[build-profiles]
+"*" = "development"

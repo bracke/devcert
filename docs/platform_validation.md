@@ -38,7 +38,22 @@ backends where available.
 
 ## macOS System Store
 
-Run on a Mac, on a disposable account or machine:
+The macOS CI job packages its own build, so a Mac does not have to build the
+whole workspace to be validated. Take it from a run of the `ci` workflow:
+
+```text
+gh run download --name devcert-macos-x86_64
+tar -xzf devcert-macos-x86_64.tar.gz
+cd devcert-macos-x86_64
+```
+
+The archive carries `bin/devcert` with the `share/` tree it reads, plus
+`devcert_tools` and `devcert.gpr`, which is how the check finds the root. macOS
+may quarantine a downloaded binary; `xattr -dr com.apple.quarantine .` clears
+it. The build is x86_64, because `gnat_native` has no aarch64-darwin binary, so
+on Apple silicon it runs under Rosetta.
+
+Then, on a disposable account or machine:
 
 ```text
 DEVCERT_RUN_PLATFORM_TRUST_TESTS=1 \

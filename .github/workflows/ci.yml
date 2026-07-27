@@ -151,3 +151,35 @@ jobs:
         # The suite resolves repository paths from its own executable, so the
         # working directory here is free; see docs/testing.md.
         run: alr exec -- ./bin/devcert_tests
+
+      # The keychain adapter can only be validated by hand, on a Mac. This is
+      # that build, packaged to carry there: bin/devcert with the share/ tree it
+      # reads at Exe/../share, plus devcert_tools and devcert.gpr, which is how
+      # platform-check finds the root. gnat_native has no aarch64-darwin build,
+      # so this is x86_64 and runs under Rosetta on Apple silicon.
+      - name: Build the tooling for the artifact (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        working-directory: devcert/devcert_tools
+        run: alr --non-interactive build
+
+      - name: Package the macOS binary
+        if: runner.os == 'macOS'
+        shell: bash
+        working-directory: devcert
+        # tar through tarlib and gzip through zlib, because repository tooling
+        # here is Ada -- and because tarlib lets the executable bit through,
+        # which the upload step's own zip would drop.
+        run: |
+          (cd tools/package_artifact && alr --non-interactive build)
+          ./tools/package_artifact/bin/package_artifact \
+            devcert-macos-x86_64 devcert-macos-x86_64.tar.gz
+
+      - name: Upload the macOS binary
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v7
+        with:
+          name: devcert-macos-x86_64
+          path: devcert/devcert-macos-x86_64.tar.gz
+          if-no-files-found: error
+          retention-days: 30

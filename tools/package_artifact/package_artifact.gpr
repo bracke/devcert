@@ -1,0 +1,19 @@
+with "config/package_artifact_config.gpr";
+--  Its own Alire root, kept out of the app's bin so `alr install` never ships
+--  it: this packages a build, it is not part of one.
+project Package_Artifact is
+   for Source_Dirs use ("src/", "config/");
+   for Object_Dir use "obj/" & Package_Artifact_Config.Build_Profile;
+   for Exec_Dir use "bin";
+   for Create_Missing_Dirs use "True";
+   for Main use ("package_artifact.adb");
+
+   package Compiler is
+      for Default_Switches ("Ada") use
+        Package_Artifact_Config.Ada_Compiler_Switches & ("-gnat2022", "-gnatyM100");
+   end Compiler;
+
+   package Binder is
+      for Switches ("Ada") use ("-Es");
+   end Binder;
+end Package_Artifact;

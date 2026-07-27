@@ -44,3 +44,6 @@ Thumbs.db
 
 # Bundled i18n locale data (generated, copied from the i18n dependency)
 /share/i18n/
+
+# Staged binary artifact from tools/package_artifact
+/devcert-macos-x86_64.tar.gz
