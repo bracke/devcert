@@ -7,6 +7,8 @@ with Ada.Strings.Unbounded;
 
 with GNAT.OS_Lib;
 
+with Devcert_Test_Suite.Paths;
+
 with Devcert_Core;
 with Devcert_Crypto;
 with Devcert_Exit_Codes;
@@ -235,7 +237,7 @@ package body Devcert_Test_Suite.Core_Tests is
             Ada.Directories.Delete_File (Output_File);
          end if;
          GNAT.OS_Lib.Spawn
-           ("./bin/devcert",
+           (Paths.Devcert_Executable,
             Args,
             Output_File,
             Spawned,
@@ -578,7 +580,7 @@ package body Devcert_Test_Suite.Core_Tests is
             Ada.Directories.Delete_File (Output_File);
          end if;
          GNAT.OS_Lib.Spawn
-           ("./bin/devcert",
+           (Paths.Devcert_Executable,
             Args,
             Output_File,
             Spawned,
@@ -691,7 +693,7 @@ package body Devcert_Test_Suite.Core_Tests is
             Ada.Directories.Delete_File (Output_File);
          end if;
          GNAT.OS_Lib.Spawn
-           ("./bin/devcert",
+           (Paths.Devcert_Executable,
             Args,
             Output_File,
             Spawned,
@@ -709,11 +711,15 @@ package body Devcert_Test_Suite.Core_Tests is
          end if;
       end Run_Devcert;
 
-      Env_Catalog : constant String := "/tmp/devcert-aunit-env.catalog";
-      CLI_Catalog : constant String := "/tmp/devcert-aunit-cli.catalog";
-      Bad_Catalog : constant String := "/tmp/devcert-aunit-bad.catalog";
-      Code        : Integer := 0;
-      Output      : Unbounded_String;
+      Source_Catalog  : constant String :=
+        Paths.In_Repository ("config/messages/en.catalog");
+      Bundled_Catalog : constant String :=
+        Paths.In_Repository ("share/devcert/messages.catalog");
+      Env_Catalog     : constant String := "/tmp/devcert-aunit-env.catalog";
+      CLI_Catalog     : constant String := "/tmp/devcert-aunit-cli.catalog";
+      Bad_Catalog     : constant String := "/tmp/devcert-aunit-bad.catalog";
+      Code            : Integer := 0;
+      Output          : Unbounded_String;
    begin
       Ada.Environment_Variables.Set ("LANG", "de_DE.UTF-8");
       Ada.Environment_Variables.Set ("LC_MESSAGES", "fr_FR.UTF-8");
@@ -738,56 +744,56 @@ package body Devcert_Test_Suite.Core_Tests is
         (Devcert.Locale.Current = "de_DE.UTF-8",
          "LANG is used when devcert and LC overrides are absent");
 
-      Assert_Catalog_Contains ("config/messages/en.catalog", "app.name");
-      Assert_Catalog_Contains ("share/devcert/messages.catalog", "app.name");
-      Assert_Catalog_Contains ("config/messages/en.catalog", "cli.usage");
-      Assert_Catalog_Contains ("share/devcert/messages.catalog", "cli.usage");
-      Assert_Catalog_Contains ("config/messages/en.catalog", "cli.commands");
-      Assert_Catalog_Contains ("share/devcert/messages.catalog", "cli.commands");
-      Assert_Catalog_Contains ("config/messages/en.catalog", "cli.global_options");
-      Assert_Catalog_Contains ("share/devcert/messages.catalog", "cli.global_options");
+      Assert_Catalog_Contains (Source_Catalog, "app.name");
+      Assert_Catalog_Contains (Bundled_Catalog, "app.name");
+      Assert_Catalog_Contains (Source_Catalog, "cli.usage");
+      Assert_Catalog_Contains (Bundled_Catalog, "cli.usage");
+      Assert_Catalog_Contains (Source_Catalog, "cli.commands");
+      Assert_Catalog_Contains (Bundled_Catalog, "cli.commands");
+      Assert_Catalog_Contains (Source_Catalog, "cli.global_options");
+      Assert_Catalog_Contains (Bundled_Catalog, "cli.global_options");
       Assert_Catalog_Contains
-        ("config/messages/en.catalog", "cli.global_options_paths");
+        (Source_Catalog, "cli.global_options_paths");
       Assert_Catalog_Contains
-        ("share/devcert/messages.catalog", "cli.global_options_paths");
-      Assert_Catalog_Contains ("config/messages/en.catalog", "error.devcert");
-      Assert_Catalog_Contains ("share/devcert/messages.catalog", "error.devcert");
+        (Bundled_Catalog, "cli.global_options_paths");
+      Assert_Catalog_Contains (Source_Catalog, "error.devcert");
+      Assert_Catalog_Contains (Bundled_Catalog, "error.devcert");
       Assert_Catalog_Contains
-        ("config/messages/en.catalog", "error.missing_value");
+        (Source_Catalog, "error.missing_value");
       Assert_Catalog_Contains
-        ("share/devcert/messages.catalog", "error.missing_value");
+        (Bundled_Catalog, "error.missing_value");
       Assert_Catalog_Contains
-        ("config/messages/en.catalog", "error.duplicate_option");
+        (Source_Catalog, "error.duplicate_option");
       Assert_Catalog_Contains
-        ("share/devcert/messages.catalog", "error.duplicate_option");
-      Assert_Catalog_Contains ("config/messages/en.catalog", "error.invalid_color");
-      Assert_Catalog_Contains ("share/devcert/messages.catalog", "error.invalid_color");
-      Assert_Catalog_Contains ("config/messages/en.catalog", "error.unknown_option");
-      Assert_Catalog_Contains ("share/devcert/messages.catalog", "error.unknown_option");
-      Assert_Catalog_Contains ("config/messages/en.catalog", "error.unknown_command");
-      Assert_Catalog_Contains ("share/devcert/messages.catalog", "error.unknown_command");
+        (Bundled_Catalog, "error.duplicate_option");
+      Assert_Catalog_Contains (Source_Catalog, "error.invalid_color");
+      Assert_Catalog_Contains (Bundled_Catalog, "error.invalid_color");
+      Assert_Catalog_Contains (Source_Catalog, "error.unknown_option");
+      Assert_Catalog_Contains (Bundled_Catalog, "error.unknown_option");
+      Assert_Catalog_Contains (Source_Catalog, "error.unknown_command");
+      Assert_Catalog_Contains (Bundled_Catalog, "error.unknown_command");
       Assert_Catalog_Contains
-        ("config/messages/en.catalog", "error.invalid_certificate_request");
+        (Source_Catalog, "error.invalid_certificate_request");
       Assert_Catalog_Contains
-        ("share/devcert/messages.catalog", "error.invalid_certificate_request");
-      Assert_Catalog_Contains ("config/messages/en.catalog", "error.ca_unusable");
-      Assert_Catalog_Contains ("share/devcert/messages.catalog", "error.ca_unusable");
-      Assert_Catalog_Contains ("config/messages/en.catalog", "error.invalid_identity");
-      Assert_Catalog_Contains ("share/devcert/messages.catalog", "error.invalid_identity");
+        (Bundled_Catalog, "error.invalid_certificate_request");
+      Assert_Catalog_Contains (Source_Catalog, "error.ca_unusable");
+      Assert_Catalog_Contains (Bundled_Catalog, "error.ca_unusable");
+      Assert_Catalog_Contains (Source_Catalog, "error.invalid_identity");
+      Assert_Catalog_Contains (Bundled_Catalog, "error.invalid_identity");
       Assert_Catalog_Contains
-        ("config/messages/en.catalog", "error.mixed_identity_modes");
+        (Source_Catalog, "error.mixed_identity_modes");
       Assert_Catalog_Contains
-        ("share/devcert/messages.catalog", "error.mixed_identity_modes");
-      Assert_Catalog_Contains ("config/messages/en.catalog", "error.csr_combination");
-      Assert_Catalog_Contains ("share/devcert/messages.catalog", "error.csr_combination");
-      Assert_Catalog_Contains ("config/messages/en.catalog", "cert.issued");
-      Assert_Catalog_Contains ("share/devcert/messages.catalog", "cert.issued");
-      Assert_Catalog_Contains ("config/messages/en.catalog", "cert.p12_written");
-      Assert_Catalog_Contains ("share/devcert/messages.catalog", "cert.p12_written");
-      Assert_Catalog_Contains ("config/messages/en.catalog", "inspect.ca");
-      Assert_Catalog_Contains ("share/devcert/messages.catalog", "inspect.ca");
-      Assert_Catalog_Contains ("config/messages/en.catalog", "doctor.ca_complete");
-      Assert_Catalog_Contains ("share/devcert/messages.catalog", "doctor.ca_complete");
+        (Bundled_Catalog, "error.mixed_identity_modes");
+      Assert_Catalog_Contains (Source_Catalog, "error.csr_combination");
+      Assert_Catalog_Contains (Bundled_Catalog, "error.csr_combination");
+      Assert_Catalog_Contains (Source_Catalog, "cert.issued");
+      Assert_Catalog_Contains (Bundled_Catalog, "cert.issued");
+      Assert_Catalog_Contains (Source_Catalog, "cert.p12_written");
+      Assert_Catalog_Contains (Bundled_Catalog, "cert.p12_written");
+      Assert_Catalog_Contains (Source_Catalog, "inspect.ca");
+      Assert_Catalog_Contains (Bundled_Catalog, "inspect.ca");
+      Assert_Catalog_Contains (Source_Catalog, "doctor.ca_complete");
+      Assert_Catalog_Contains (Bundled_Catalog, "doctor.ca_complete");
 
       Assert
         (Devcert_Messages.Text ("cli.usage") =
@@ -1589,7 +1595,7 @@ package body Devcert_Test_Suite.Core_Tests is
             Ada.Directories.Delete_File (Output_File);
          end if;
          GNAT.OS_Lib.Spawn
-           ("./bin/devcert",
+           (Paths.Devcert_Executable,
             Args,
             Output_File,
             Spawned,

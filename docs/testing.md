@@ -30,6 +30,11 @@ by automated tests include:
 * security output invariants
 * deterministic clock behavior
 
+Repository paths are resolved through `Devcert_Test_Suite.Paths`, which derives
+the repository root from the location of the suite executable. The suite
+therefore produces the same result from any working directory, and is run as
+`devcert_tests/bin/devcert_tests`.
+
 Tests use temporary CA roots under `/tmp` and must not operate on the user's
 real CA directory. Clock-dependent tests use `Devcert.Clock.Set_Test_Time` and
 reset the clock after use. Trust-store tests exercise selection, planning, and
