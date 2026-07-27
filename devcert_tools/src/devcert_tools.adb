@@ -862,6 +862,13 @@ procedure Devcert_Tools is
             Fail (State, Path, "parity matrix contains incomplete cell " & Value);
          end if;
       end Reject_Cell;
+
+      procedure Require_Text (Item : String) is
+      begin
+         if not Project_Tools.Files.Line_Contains (Path, Item) then
+            Fail (State, Path, "parity matrix is missing " & Item);
+         end if;
+      end Require_Text;
    begin
       Project_Tools.Files.Require_File (Path, "mkcert parity matrix");
       Require_Row ("CA root resolution");
@@ -887,6 +894,14 @@ procedure Devcert_Tools is
       Require_Row ("localized human output");
       Reject_Cell ("Partial");
       Reject_Cell ("No");
+
+      --  Suite coverage and a run on a real host are different claims, and the
+      --  matrix said "Tested" for both until a platform that had never executed
+      --  the adapter at all was reading as tested. The column cannot be dropped
+      --  back into one without failing here, and what it records lives in the
+      --  evidence file.
+      Require_Text ("| Host validation |");
+      Require_Text ("platform_evidence.md");
       Require_Success (State, "parity-check");
       Put_Line ("parity-check passed");
    end Run_Parity_Check;
