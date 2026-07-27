@@ -5,8 +5,12 @@ configured state directory and is never installed into operating system,
 browser, Java, or NSS trust stores.
 
 Private-key files and PKCS#12 bundles are written atomically and with owner-only
-permissions where the platform supports them. The write ends in a replacing
-rename through `hostkit`, which is a single step on both POSIX and Windows;
+permissions where the platform supports them. Those permissions are applied
+through `Hostkit.Fs.Make_Private`, which calls `chmod(2)` directly: the earlier
+spawn of `chmod(1)` needed the tool on `PATH`, and where it was absent the write
+went ahead and left the key with whatever permissions it was created with. The
+write ends in a replacing rename through `hostkit`, which is a single step on
+both POSIX and Windows;
 `doctor` reports a CA whose private key or metadata is readable by anyone but
 the owner as a CA state failure. That question is put to the host through
 `Hostkit.Fs.Accessible_By_Others` rather than to a `stat` command, whose options

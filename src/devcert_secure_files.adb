@@ -27,8 +27,26 @@ package body Devcert_Secure_Files is
       end if;
    end Locate;
 
+   --  Owner-only is the case with a security invariant behind it, and hostkit applies
+   --  it with chmod(2): no PATH to search, and an answer as to whether it took. Every
+   --  other mode here widens a path -- a certificate meant to be world-readable, a test
+   --  loosening a directory -- which carries no invariant and has no hostkit
+   --  equivalent, so it stays a best-effort spawn. Nothing is exposed by failing to
+   --  widen; that is exactly the asymmetry this split is for.
    procedure Set_Permissions (Path : String; Mode : String) is
-      Chmod   : constant String := Locate ("chmod");
+      Owner_Only : constant Boolean := Mode = "600" or else Mode = "700";
+
+      --  Hostkit calls chmod(2) itself: no PATH to search, and an answer as to whether
+      --  it took. It declines on a host with no mode bits, which leaves the spawn
+      --  below to try and, there, to find no chmod either -- devcert is then no worse
+      --  off than before, and CA_Store reports an exposed CA on its own rather than
+      --  taking the writing of a mode as evidence that one holds.
+      Applied : constant Boolean := Owner_Only and then Hostkit.Fs.Make_Private (Path);
+
+      --  The other modes widen a path -- a certificate meant to be world-readable, a
+      --  test loosening a directory. No security invariant rides on those, and nothing
+      --  is exposed by failing to widen, so a best-effort spawn is the right weight.
+      Chmod   : constant String := (if Applied then "" else Locate ("chmod"));
       Success : Boolean := False;
    begin
       if Chmod /= "" then

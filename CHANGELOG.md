@@ -28,3 +28,7 @@ Initial development release.
   machine whose trust store is the keychain.
 * An unsafe CA root or `issued/` directory is reported on macOS as well, through
   `Hostkit.Fs.Directory_Accessible_By_Others`.
+* Owner-only permissions are applied through `Hostkit.Fs.Make_Private` rather
+  than by spawning `chmod`, so a CA root, private key, or metadata file is
+  restricted even where no `chmod` is on `PATH`. Widening a mode, such as the
+  world-readable CA certificate, remains a best-effort spawn.
