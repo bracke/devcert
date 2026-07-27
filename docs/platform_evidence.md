@@ -14,8 +14,9 @@ been run as plainly as what has.
 | | |
 | --- | --- |
 | Date | 2026-07-27 |
-| Operating system | TUXEDO OS, Linux 6.17.0-122035-tuxedo |
-| Backend | `update-ca-certificates` (`trust` also present) |
+| Operating system | TUXEDO OS 24.04.4 LTS, a Kubuntu derivative (`noble`) |
+| Kernel | Linux 6.17.0-122035-tuxedo |
+| Backend | `update-ca-certificates` (`trust` also present, but lower in precedence) |
 | devcert commit | `5bfdb5f` |
 | cryptolib commit | `dc9331b` |
 | Command | `DEVCERT_RUN_PLATFORM_TRUST_TESTS=1 devcert_tools platform-check linux-system` |
@@ -26,6 +27,12 @@ requires. Independently confirmed afterwards by inspection of the host store:
 no `devcert-*.crt` remains under `/usr/local/share/ca-certificates/`, and no
 devcert anchor under `/etc/ssl/certs/`, so the removal completed rather than
 merely reporting success.
+
+"Linux" is not one target. The host is a Kubuntu derivative, so this validates
+the Debian and Ubuntu family and the `update-ca-certificates` backend, which
+devcert prefers when it is present. The other two Linux backends are untouched
+by it: `update-ca-trust`, as used by Fedora and RHEL, and `trust`, as used by
+Arch. Each needs its own run on a host that has it.
 
 Not captured for this run: the command transcript, the before/after listing as
 seen at the time, and the SHA-256 fingerprint of the root CA. `platform-check`
