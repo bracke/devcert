@@ -106,9 +106,9 @@ Stable exit codes:
 * `8` partial success
 * `9` unsupported platform or feature
 
-Code `10` was a localization error. It is retired rather than reused: nothing
-produced it and nothing should, because a missing or malformed catalog falls
-back to bare message identifiers so that the real error can still be reported.
+`10` is the next code to be assigned. A localization error was declared there
+once and never produced, because a missing or malformed catalog falls back to
+bare message identifiers rather than failing; the number is free again.
 
 ## Diagnosing Failures
 
