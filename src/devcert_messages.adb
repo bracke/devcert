@@ -1,13 +1,17 @@
+with Ada.Command_Line;
 with Ada.Directories;
 with Ada.Environment_Variables;
 with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded;  use Ada.Strings.Unbounded;
+
+with GNAT.OS_Lib;
 
 with Messages.Arguments;
 with Messages.Result;
 with Messages.Runtime;
 
 package body Devcert_Messages is
+   use type GNAT.OS_Lib.String_Access;
 
    --  Message text is rendered through the messages crate against a catalog, so
    --  it can be localized. Standard.Messages disambiguates the top-level crate
@@ -16,18 +20,72 @@ package body Devcert_Messages is
    Locale      : Unbounded_String := To_Unbounded_String ("en");
    Initialized : Boolean := False;
 
-   --  The catalog ships in share/devcert; resolve it relative to the working
-   --  directory with a build-tree fallback.
+   --  Directory part of Path, or "" when Path carries no directory.
+   function Directory_Of (Path : String) return String is
+      Cut : Natural := 0;
+   begin
+      for Index in reverse Path'Range loop
+         if Path (Index) = '/' or else Path (Index) = '\' then
+            Cut := Index;
+            exit;
+         end if;
+      end loop;
+      return (if Cut = 0 then "" else Path (Path'First .. Cut - 1));
+   end Directory_Of;
+
+   --  Directory holding the running executable, or "" when it cannot be
+   --  determined. A bare program name is resolved through PATH so an installed
+   --  devcert still locates the files shipped beside it.
+   function Executable_Directory return String is
+      Name   : constant String := Ada.Command_Line.Command_Name;
+      Direct : constant String := Directory_Of (Name);
+   begin
+      if Direct /= "" then
+         return Direct;
+      end if;
+
+      declare
+         Found : GNAT.OS_Lib.String_Access :=
+           GNAT.OS_Lib.Locate_Exec_On_Path (Name);
+      begin
+         if Found = null then
+            return "";
+         end if;
+
+         declare
+            Result : constant String := Directory_Of (Found.all);
+         begin
+            GNAT.OS_Lib.Free (Found);
+            return Result;
+         end;
+      end;
+   end Executable_Directory;
+
+   --  The catalog ships in share/devcert. An installed devcert finds it next
+   --  to its own executable (Exe/../share/devcert, matching how the i18n data
+   --  is bundled); the working-directory entries keep the build tree working.
    function Catalog_Path return String is
+      Leaf : constant String := "share/devcert/messages.catalog";
+      Exe  : constant String := Executable_Directory;
    begin
       if Ada.Environment_Variables.Exists ("DEVCERT_CATALOG") then
          return Ada.Environment_Variables.Value ("DEVCERT_CATALOG");
-      elsif Ada.Directories.Exists ("share/devcert/messages.catalog") then
-         return "share/devcert/messages.catalog";
-      elsif Ada.Directories.Exists ("../share/devcert/messages.catalog") then
-         return "../share/devcert/messages.catalog";
+      end if;
+
+      if Exe /= "" then
+         if Ada.Directories.Exists (Exe & "/../" & Leaf) then
+            return Exe & "/../" & Leaf;
+         elsif Ada.Directories.Exists (Exe & "/" & Leaf) then
+            return Exe & "/" & Leaf;
+         end if;
+      end if;
+
+      if Ada.Directories.Exists (Leaf) then
+         return Leaf;
+      elsif Ada.Directories.Exists ("../" & Leaf) then
+         return "../" & Leaf;
       else
-         return "share/devcert/messages.catalog";
+         return Leaf;
       end if;
    end Catalog_Path;
 

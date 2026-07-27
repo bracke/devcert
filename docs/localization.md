@@ -5,6 +5,18 @@ delegates locale handling to `i18n`. The default locale is `en`, stored in the
 version-controlled source catalog at `config/messages/en.catalog` and shipped
 as `share/devcert/messages.catalog`.
 
+The catalog is resolved in this order, so an installed executable is localized
+from any working directory:
+
+1. `--catalog` or `DEVCERT_CATALOG`
+2. `<executable-directory>/../share/devcert/messages.catalog`
+3. `<executable-directory>/share/devcert/messages.catalog`
+4. `share/devcert/messages.catalog` under the working directory, then one level
+   above it
+
+A program name without a directory part is resolved through `PATH` before the
+executable-relative entries are tried.
+
 Required message identifiers include:
 
 * `app.name`
