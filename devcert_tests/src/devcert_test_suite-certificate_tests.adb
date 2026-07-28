@@ -349,6 +349,121 @@ package body Devcert_Test_Suite.Certificate_Tests is
       return AUnit.Format ("custom certificate PKCS12 workflow");
    end Name;
    overriding function Name
+     (Item : CSR_Round_Trip_Test) return AUnit.Message_String
+   is
+      pragma Unreferenced (Item);
+   begin
+      return AUnit.Format ("a signed CSR keeps its subject and its key");
+   end Name;
+
+   --  Signing a CSR is the one path where the key devcert certifies is not one
+   --  devcert made. If the subject or the public key were dropped along the
+   --  way the certificate would still parse -- and would certify the wrong
+   --  key, which is the only outcome here that actually matters.
+   overriding procedure Run_Test (Item : in out CSR_Round_Trip_Test) is
+      pragma Unreferenced (Item);
+      CA_Cert  : Unbounded_String;
+      CA_Key   : Unbounded_String;
+      Leaf     : Unbounded_String;
+      Key_Path : constant String := Paths.Scratch ("devcert-aunit-csr-key.pem");
+      CSR_Path : constant String := Paths.Scratch ("devcert-aunit-csr.csr");
+      CA_Path  : constant String := Paths.Scratch ("devcert-aunit-csr-ca.pem");
+      Cert_Path : constant String := Paths.Scratch ("devcert-aunit-csr-cert.pem");
+   begin
+      Reset_Temp_Home ("csr-round-trip");
+      Assert
+        (Devcert_Crypto.Create_CA (CA_Cert, CA_Key) = Devcert_Crypto.Ok,
+         "CA creation succeeds for the CSR test");
+      Devcert_Secure_Files.Atomic_Write
+        (Devcert_State.CA_Certificate_Path, To_String (CA_Cert));
+      Devcert_Secure_Files.Atomic_Write
+        (Devcert_State.CA_Private_Key_Path, To_String (CA_Key), Secret => True);
+
+      if not Has_Openssl then
+         Ada.Text_IO.Put_Line
+           ("   (skipped: no openssl on this host to produce a CSR)");
+         return;
+      end if;
+
+      --  The request has to come from somewhere other than devcert, or this
+      --  would only prove devcert can read what it wrote.
+      Assert
+        (Openssl_Succeeds
+           ([new String'("req"),
+             new String'("-new"),
+             new String'("-newkey"),
+             new String'("ec"),
+             new String'("-pkeyopt"),
+             new String'("ec_paramgen_curve:P-384"),
+             new String'("-nodes"),
+             new String'("-sha384"),
+             new String'("-keyout"),
+             new String'(Key_Path),
+             new String'("-out"),
+             new String'(CSR_Path),
+             new String'("-subj"),
+             new String'("/CN=csr.example.test")]),
+         "openssl produces a P-384 certificate request");
+
+      Assert
+        (Devcert_Crypto.Sign_CSR
+           (Devcert_Secure_Files.Read (CSR_Path), Leaf) = Devcert_Crypto.Ok,
+         "devcert signs a request it did not create");
+
+      Devcert_Secure_Files.Atomic_Write (CA_Path, To_String (CA_Cert));
+      Devcert_Secure_Files.Atomic_Write (Cert_Path, To_String (Leaf));
+
+      Assert
+        (Index
+           (To_Unbounded_String
+              (Openssl_Output
+                 ([new String'("x509"),
+                   new String'("-in"),
+                   new String'(Cert_Path),
+                   new String'("-noout"),
+                   new String'("-subject")])),
+            "csr.example.test") /= 0,
+         "the certificate carries the subject the request asked for");
+
+      --  The key in the certificate must be the requester's own; anything else
+      --  certifies a key its holder does not have.
+      declare
+         From_Certificate : constant String :=
+           Openssl_Output
+             ([new String'("x509"),
+               new String'("-in"),
+               new String'(Cert_Path),
+               new String'("-noout"),
+               new String'("-pubkey")]);
+         From_Request : constant String :=
+           Openssl_Output
+             ([new String'("req"),
+               new String'("-in"),
+               new String'(CSR_Path),
+               new String'("-noout"),
+               new String'("-pubkey")]);
+      begin
+         Assert
+           (From_Certificate'Length > 0
+              and then From_Certificate = From_Request,
+            "and certifies the public key from the request, not another");
+      end;
+
+      Assert
+        (Openssl_Succeeds
+           ([new String'("verify"),
+             new String'("-CAfile"),
+             new String'(CA_Path),
+             new String'(Cert_Path)]),
+         "and chains to the CA that signed it");
+
+      Ada.Directories.Delete_File (Key_Path);
+      Ada.Directories.Delete_File (CSR_Path);
+      Ada.Directories.Delete_File (CA_Path);
+      Ada.Directories.Delete_File (Cert_Path);
+   end Run_Test;
+
+   overriding function Name
      (Item : Profile_Extensions_Test) return AUnit.Message_String
    is
       pragma Unreferenced (Item);
