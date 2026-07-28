@@ -35,6 +35,9 @@ Initial development release.
   been failing as though it needed privileges.
 * Removing a trust anchor that is not installed says so instead of reporting a
   removal that did not happen.
+* Identity validation, PEM comparison and PEM sniffing are asked of
+  `cryptolib` rather than reimplemented: one set of rules decides what a
+  certificate may contain, and it is the one that has to encode it.
 * The NSS store covers Firefox. `$HOME/.pki/nssdb` is the database Chromium
   reads and Firefox does not; devcert now also acts on every Firefox profile
   holding a `cert9.db`, reporting each database and staying

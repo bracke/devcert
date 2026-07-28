@@ -1,6 +1,8 @@
 with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded;
 
+with CryptoLib.Certificates;
+
 with Devcert.Clock;
 with Devcert.Locks;
 with Devcert_Crypto;
@@ -59,14 +61,12 @@ package body Devcert.CA_Store is
 
    function Looks_Like_Certificate (Text : String) return Boolean is
    begin
-      return Ada.Strings.Fixed.Index (Text, "BEGIN CERTIFICATE") /= 0
-        and then Ada.Strings.Fixed.Index (Text, "END CERTIFICATE") /= 0;
+      return CryptoLib.Certificates.Contains_Certificate (Text);
    end Looks_Like_Certificate;
 
    function Looks_Like_Private_Key (Text : String) return Boolean is
    begin
-      return Ada.Strings.Fixed.Index (Text, "BEGIN PRIVATE KEY") /= 0
-        and then Ada.Strings.Fixed.Index (Text, "END PRIVATE KEY") /= 0;
+      return CryptoLib.Certificates.Contains_Private_Key (Text);
    end Looks_Like_Private_Key;
 
    function Evaluate return CA_State is

@@ -5,6 +5,8 @@ with Ada.Strings.Fixed;
 
 with GNAT.OS_Lib;
 
+with CryptoLib.Certificates;
+
 with Hostkit.Host;
 
 package body Devcert_Trust_Stores is
@@ -396,27 +398,13 @@ package body Devcert_Trust_Stores is
       Success := Spawned and then Return_Code = 0;
    end Run_Capture;
 
-   function Canonical_PEM (Text : String) return String is
-      Result : Unbounded_String;
-   begin
-      for C of Text loop
-         if C in 'A' .. 'Z'
-           or else C in 'a' .. 'z'
-           or else C in '0' .. '9'
-           or else C = '+'
-           or else C = '/'
-           or else C = '='
-           or else C = '-'
-         then
-            Ada.Strings.Unbounded.Append (Result, C);
-         end if;
-      end loop;
-      return Ada.Strings.Unbounded.To_String (Result);
-   end Canonical_PEM;
-
+   --  Asked of cryptolib, which owns PEM. Comparing scrubbed text here treated
+   --  the armour as noise, so a private key and a certificate whose base64
+   --  matched would have compared equal -- and this decides whether an anchor
+   --  on disk is ours before it is deleted.
    function Same_Certificate (Left : String; Right : String) return Boolean is
    begin
-      return Canonical_PEM (Left) = Canonical_PEM (Right);
+      return CryptoLib.Certificates.Same_Certificate (Left, Right);
    end Same_Certificate;
 
    function Detect_Linux_Backend return Linux_System_Backend is

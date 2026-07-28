@@ -13,6 +13,20 @@ All cryptographic operations are delegated to `cryptolib`.
 `devcert` must not contain duplicate crypto primitives, key serialization
 implementations, or certificate signing implementations.
 
+Nor duplicate rules about what a certificate may contain. Whether a string is a
+DNS name, an IP address or an email address is asked of
+`CryptoLib.Certificates.Valid_DNS_Name`, `Valid_IP_Address` and
+`Valid_Email_Address`; whether two PEM texts hold the same certificate, of
+`Same_Certificate`; and whether a file holds a certificate or a private key, of
+`Contains_Certificate` and `Contains_Private_Key`. `devcert` validates
+identities early, because it owns the diagnostics and the exit codes, but it
+validates by asking rather than by keeping a second copy of the rules -- which
+could accept an identity that then failed to encode, or refuse one that would
+have.
+
+What stays here: which identities a command accepts, in what combination, and
+what it says when it refuses one.
+
 The CA and the certificates it issues use NIST P-384 with ECDSA-SHA384. Not a
 preference: NSS refuses to import an Ed25519 certificate at all, so a CA built
 that way is trusted by no browser, whatever the trust-store adapters do.
