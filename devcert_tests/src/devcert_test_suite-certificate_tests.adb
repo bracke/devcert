@@ -11,6 +11,14 @@ with Devcert.Identities;
 
 with Devcert_Test_Suite.Support;
 
+with GNAT.OS_Lib;
+
+with Ada.Text_IO;
+
+with Ada.Directories;
+
+with Devcert_Test_Suite.Paths;
+
 package body Devcert_Test_Suite.Certificate_Tests is
    use AUnit.Assertions;
    use Ada.Strings.Unbounded;
@@ -369,6 +377,60 @@ package body Devcert_Test_Suite.Certificate_Tests is
       Assert
         (Length (Bundle) > 0 and then Element (Bundle, 1) = Character'Val (16#30#),
          "custom-artifact PKCS#12 output is DER");
+
+      --  That it is DER says nothing about the password it was built with. The
+      --  bundle is integrity protected by that password, so a reader given the
+      --  right one accepts it and a reader given another does not -- which is
+      --  the only claim a caller of --p12-password-file is making.
+      declare
+         use type GNAT.OS_Lib.String_Access;
+         Found : GNAT.OS_Lib.String_Access :=
+           GNAT.OS_Lib.Locate_Exec_On_Path ("openssl");
+
+         Bundle_Path : constant String :=
+           Paths.Scratch ("devcert-aunit-p12-password.p12");
+
+         function Openssl_Accepts (Password : String) return Boolean is
+            Spawned : Boolean := False;
+            Code    : Integer := 1;
+            Sink    : constant String :=
+              Paths.Scratch ("devcert-aunit-p12-openssl.out");
+         begin
+            GNAT.OS_Lib.Spawn
+              (Found.all,
+               [new String'("pkcs12"),
+                new String'("-in"),
+                new String'(Bundle_Path),
+                new String'("-passin"),
+                new String'("pass:" & Password),
+                new String'("-nokeys"),
+                new String'("-noout")],
+               Sink,
+               Spawned,
+               Code,
+               Err_To_Out => True);
+            if Ada.Directories.Exists (Sink) then
+               Ada.Directories.Delete_File (Sink);
+            end if;
+            return Spawned and then Code = 0;
+         end Openssl_Accepts;
+      begin
+         if Found = null then
+            Ada.Text_IO.Put_Line
+              ("   (skipped: no openssl on this host to read the bundle back)");
+         else
+            Devcert_Secure_Files.Atomic_Write_Raw
+              (Bundle_Path, To_String (Bundle));
+            Assert
+              (Openssl_Accepts ("secret"),
+               "the bundle opens with the password it was built with");
+            Assert
+              (not Openssl_Accepts ("not-the-password"),
+               "and does not open with another");
+            GNAT.OS_Lib.Free (Found);
+            Ada.Directories.Delete_File (Bundle_Path);
+         end if;
+      end;
    end Run_Test;
 
 end Devcert_Test_Suite.Certificate_Tests;

@@ -38,6 +38,10 @@ Initial development release.
 * Identity validation, PEM comparison and PEM sniffing are asked of
   `cryptolib` rather than reimplemented: one set of rules decides what a
   certificate may contain, and it is the one that has to encode it.
+* A PKCS#12 bundle can be opened by the tools that read one. Every bundle
+  failed its own MAC check -- OpenSSL refused the password it was built with --
+  because the password was widened to a BMPString twice before the MAC key was
+  derived.
 * The NSS store covers Firefox. `$HOME/.pki/nssdb` is the database Chromium
   reads and Firefox does not; devcert now also acts on every Firefox profile
   holding a `cert9.db`, reporting each database and staying

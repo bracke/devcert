@@ -33,7 +33,9 @@ permissions, and writer locking.
 Packages: `Devcert.Certificate_Requests`, `Devcert.Certificate_Policies`,
 `Devcert.Identities`.
 
-Coverage: DNS, IP, email, duplicates, limits, output names, and profile
+Coverage: a PKCS#12 bundle read back with the password it was built with, and
+refused with another -- through `openssl` where the host has it, skipped aloud
+where it does not. DNS, IP, email, duplicates, limits, output names, and profile
 selection.
 
 ## Crypto Adapter
