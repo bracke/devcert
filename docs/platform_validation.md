@@ -120,7 +120,22 @@ devcert_tools platform-check windows-system
 
 The same sequence as the other system targets, against the Windows certificate
 store through `certutil`. Writing to the machine store needs an elevated
-prompt; the current-user store does not.
+prompt; the current-user store does not. Unelevated, devcert answers
+`permission-required` and exit 7 rather than reporting a broken store.
+
+Without a Windows machine to hand, the `platform-windows` workflow does this on
+a GitHub-hosted runner, which is a disposable virtual machine of exactly the
+kind this page asks for:
+
+```text
+gh workflow run platform-windows
+gh run download --name windows-trust-transcript
+```
+
+It is manual-trigger only, because nothing that mutates a trust store should
+run because somebody committed. One thing it cannot show: the runner is already
+elevated, so it reaches the unprivileged case through a restricted token
+(`runas /trustlevel:0x20000`) rather than an ordinary user account.
 
 Verify the current-user root store before and after removal with `certutil`.
 The step-by-step form, if the check itself is what is under suspicion:

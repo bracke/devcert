@@ -1,0 +1,239 @@
+name: platform-windows
+
+# Validates the Windows system trust store against a real one.
+#
+# Manual trigger only. Every other workflow here may run on a push; this one
+# mutates the machine Root certificate store, and nothing that does should fire
+# because somebody committed. The runner is a disposable virtual machine, which
+# is what docs/platform_validation.md asks for, and the transcript it uploads is
+# the evidence record.
+#
+# What it cannot show: a GitHub-hosted Windows runner is already elevated, so
+# the ordinary denial -- an unprivileged caller refused by the machine store --
+# is reached here through a restricted token rather than an ordinary user
+# account. Recorded as such.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  windows-trust:
+    name: windows system trust store
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with: { path: devcert }
+      - uses: actions/checkout@v7
+        with: { repository: "${{ github.repository_owner }}/project_tools", path: project_tools }
+      - uses: actions/checkout@v7
+        with: { repository: "${{ github.repository_owner }}/httpclient", path: httpclient }
+      - uses: actions/checkout@v7
+        with: { repository: "${{ github.repository_owner }}/zlib", path: zlib }
+      - uses: actions/checkout@v7
+        with: { repository: "${{ github.repository_owner }}/cryptolib", path: cryptolib }
+      - uses: actions/checkout@v7
+        with: { repository: "${{ github.repository_owner }}/tarlib", path: tarlib }
+      - uses: actions/checkout@v7
+        with: { repository: "${{ github.repository_owner }}/awklib", path: awklib }
+      - uses: actions/checkout@v7
+        with: { repository: "${{ github.repository_owner }}/regexp", path: regexp }
+      - uses: actions/checkout@v7
+        with: { repository: "${{ github.repository_owner }}/hostkit", path: hostkit }
+      - uses: actions/checkout@v7
+        with: { repository: "${{ github.repository_owner }}/i18n", path: i18n }
+      - uses: actions/checkout@v7
+        with: { repository: "${{ github.repository_owner }}/messages", path: messages }
+      - uses: actions/checkout@v7
+        with: { repository: "${{ github.repository_owner }}/terminal_styles", path: terminal_styles }
+
+      - name: Install system libraries
+        shell: bash
+        # Alire's gnat_native is a mingw-w64 toolchain, so its ld needs mingw
+        # import libraries; take them from the preinstalled MSYS2. Same as ci.yml.
+        run: |
+          pacman() { /c/msys64/usr/bin/pacman "$@"; }
+          pacman-key() { /c/msys64/usr/bin/pacman-key "$@"; }
+          pacman-key --init || true
+          pacman-key --populate msys2 || true
+
+          packages="mingw-w64-x86_64-openssl"
+
+          sync() {
+            pacman -Sy --noconfirm --needed --disable-download-timeout "$@" $packages
+          }
+
+          synced=""
+          for attempt in 1 2 3; do
+            if sync; then synced=yes; break; fi
+            echo "::warning::pacman sync attempt ${attempt} failed"
+            sleep 15
+          done
+
+          if [ -z "$synced" ]; then
+            echo "::warning::signed pacman sync failed; retrying without signature checks"
+            sed 's/^SigLevel.*/SigLevel = Never/' /c/msys64/etc/pacman.conf \
+              > /c/msys64/tmp/pacman-nosig.conf
+            for attempt in 1 2 3; do
+              if sync --config C:/msys64/tmp/pacman-nosig.conf; then synced=yes; break; fi
+              echo "::warning::unsigned pacman sync attempt ${attempt} failed"
+              sleep 15
+            done
+          fi
+
+          [ -n "$synced" ] || { echo "::error::could not install the MSYS2 packages"; exit 1; }
+
+          echo "CPATH=C:/msys64/mingw64/include" >> "$GITHUB_ENV"
+          echo "LIBRARY_PATH=C:/msys64/mingw64/lib" >> "$GITHUB_ENV"
+          echo "C:\msys64\mingw64\bin" >> "$GITHUB_PATH"
+
+      - name: Set up Alire
+        uses: alire-project/setup-alire@v6
+        with:
+          toolchain: gnat_native=15.2.1 gprbuild
+
+      - name: Build devcert
+        shell: bash
+        working-directory: devcert
+        run: alr --non-interactive build
+
+      - name: Point the runtime at the bundled i18n data
+        shell: bash
+        working-directory: devcert
+        # See the note in ci.yml: i18n's own search candidates carry "/../"
+        # segments that a mixed-separator lookup mangles on Windows.
+        run: |
+          SRC="$(cd share/i18n && pwd)"
+          echo "I18N_DATA_DIR=$(cygpath -m "$SRC")" >> "$GITHUB_ENV"
+
+      - name: Build the tooling
+        shell: bash
+        working-directory: devcert/devcert_tools
+        run: alr --non-interactive build
+
+      - name: Validate the machine Root store
+        id: validate
+        shell: bash
+        working-directory: devcert
+        env:
+          DEVCERT_RUN_PLATFORM_TRUST_TESTS: "1"
+        run: |
+          set -u
+          LOG=windows-trust-transcript.txt
+          exec > >(tee "$LOG") 2>&1
+
+          echo "=== host"
+          cmd //c ver
+          echo "devcert commit: $(git rev-parse --short HEAD)"
+          echo "cryptolib commit: $(git -C ../cryptolib rev-parse --short HEAD)"
+          echo "hostkit commit: $(git -C ../hostkit rev-parse --short HEAD)"
+
+          echo
+          echo "=== is this session elevated?"
+          # S-1-16-12288 is the high integrity level: what an elevated token has.
+          if cmd //c "whoami /groups" | grep -q "S-1-16-12288"; then
+            echo "elevated: yes (a GitHub-hosted runner is)"
+          else
+            echo "elevated: no"
+          fi
+
+          echo
+          echo "=== Root store before (expect no devcert anchor)"
+          cmd //c "certutil -store Root" | grep -i devcert || echo "no devcert certificate present"
+
+          echo
+          echo "=== unprivileged install (expect permission-required, exit 7)"
+          # runas /trustlevel:0x20000 drops to a restricted token without needing
+          # another account or a password. It does not wait, so the child writes
+          # its own exit status and this waits for that.
+          rm -rf "$RUNNER_TEMP/devcert-unelevated" unelevated.txt
+          UNPRIV_ROOT="$(cygpath -w "$RUNNER_TEMP")\\devcert-unelevated"
+          INNER="bin\\devcert.exe --ca-root ${UNPRIV_ROOT}"
+          INNER="${INNER} --plain install --trust-store system"
+          INNER="${INNER} > unelevated.txt 2>&1"
+          INNER="${INNER} & echo exit=%ERRORLEVEL% >> unelevated.txt"
+          cmd //c "runas /trustlevel:0x20000 \"cmd /c ${INNER}\"" || true
+          for attempt in $(seq 1 30); do
+            if [ -s unelevated.txt ] && grep -q "exit=" unelevated.txt; then break; fi
+            sleep 2
+          done
+          if [ -s unelevated.txt ]; then
+            cat unelevated.txt
+          else
+            echo "::warning::restricted-token run produced no output; denial unexercised"
+          fi
+
+          echo
+          echo "=== elevated: the whole check in one pass"
+          ./devcert_tools/bin/devcert_tools platform-check windows-system
+          echo "platform-check exit: $?"
+
+          # platform-check makes its own CA root and deletes it, so the
+          # fingerprint evidence needs a root that stays put.
+          echo
+          echo "=== a recorded root"
+          CAROOT="$(cygpath -w "$RUNNER_TEMP")\\devcert-windows-evidence"
+          rm -rf "$RUNNER_TEMP/devcert-windows-evidence"
+          ./bin/devcert.exe --ca-root "$CAROOT" --plain install --trust-store system
+          echo "install exit: $?"
+
+          echo
+          echo "=== fingerprint devcert issued"
+          openssl x509 -in "$RUNNER_TEMP/devcert-windows-evidence/rootCA.pem" \
+            -noout -fingerprint -sha256
+
+          echo
+          echo "=== Root store after install (expect that fingerprint)"
+          cmd //c "certutil -store Root" | grep -iA 3 devcert \
+            || echo "NOT FOUND -- install did not reach the store"
+
+          echo
+          echo "=== doctor"
+          ./bin/devcert.exe --ca-root "$CAROOT" --plain doctor
+          echo "doctor exit: $?"
+
+          echo
+          echo "=== uninstall"
+          ./bin/devcert.exe --ca-root "$CAROOT" --plain uninstall --trust-store system
+          echo "uninstall exit: $?"
+
+          echo
+          echo "=== Root store after uninstall (expect nothing)"
+          cmd //c "certutil -store Root" | grep -i devcert \
+            || echo "absent after uninstall"
+
+          echo
+          echo "=== done"
+
+      - name: Leave the store as it was found
+        if: always()
+        shell: bash
+        working-directory: devcert
+        # The runner is thrown away, but a check that can leave a trusted root
+        # behind should still be the one that takes it out again.
+        run: |
+          set -u
+          for attempt in 1 2 3; do
+            # certutil prints the hash after the subject, not before it.
+            HASH=$(cmd //c "certutil -store Root" \
+              | grep -iA 8 "devcert-local-development-ca" \
+              | grep -i "Cert Hash(sha1):" \
+              | head -1 | tr -d '\r' | awk -F': ' '{print $2}' | tr -d ' ')
+            [ -z "$HASH" ] && break
+            echo "removing $HASH"
+            cmd //c "certutil -delstore Root $HASH" || true
+          done
+          cmd //c "certutil -store Root" | grep -i devcert && {
+            echo "::error::a devcert certificate is still trusted on this runner"
+            exit 1
+          }
+          echo "clean"
+
+      - name: Keep the transcript
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-trust-transcript
+          path: devcert/windows-trust-transcript.txt
+          if-no-files-found: warn
+          retention-days: 30

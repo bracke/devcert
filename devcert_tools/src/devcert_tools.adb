@@ -1108,7 +1108,13 @@ procedure Devcert_Tools is
       use type Hostkit.Host.Kind;
 
       State       : Check_State;
-      Devcert_Bin : constant String := Project_Root & "/bin/devcert";
+      --  Windows names it devcert.exe. Asked of the file system rather than of
+      --  the host, because a tree carried to another machine keeps the name it
+      --  was built with.
+      Devcert_Bin : constant String :=
+        (if Project_Tools.Files.File_Exists (Project_Root & "/bin/devcert.exe")
+         then Project_Root & "/bin/devcert.exe"
+         else Project_Root & "/bin/devcert");
       CA_Root     : constant String :=
         Project_Tools.Files.Temp_Dir & "/devcert-platform-" & Target;
       Install_Status   : Integer;
