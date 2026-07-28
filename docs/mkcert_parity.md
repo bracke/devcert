@@ -35,7 +35,7 @@ What each column asserts:
 | Firefox trust | Implemented | Tested | Linux | Yes |
 | Java trust | Implemented | Tested | Pending | Yes |
 | macOS trust | Implemented | Tested | macOS | Yes |
-| Windows trust | Implemented | Tested | Pending | Yes |
+| Windows trust | Implemented | Tested | Partial | Yes |
 | fingerprint-authoritative removal | Implemented | Tested | Linux | Yes |
 | JSON output | Implemented | Tested | n/a | Yes |
 | localized human output | Implemented | Tested | n/a | Yes |

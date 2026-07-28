@@ -126,17 +126,54 @@ as written.
 
 ## Windows System Store
 
-Not validated.
+| | |
+| --- | --- |
+| Date | 2026-07-28 |
+| Operating system | Windows Server 2025 (10.0.26100.32995), GitHub-hosted runner |
+| devcert commit | `3b341f6` |
+| cryptolib commit | `5c57a7e` |
+| Result | Passed, elevated: installed, validated, removed, and the store read back |
 
-`certutil` is reached through the same live command adapter as macOS. CI builds
-and runs the suite on Windows and skips the mutating assertions there too. What
-closes it is a run of `devcert_tools platform-check windows-system` on Windows,
-in an elevated console, recorded here.
+Run by the `platform-windows` workflow, which is manual-trigger only. A hosted
+runner is a disposable virtual machine, which is what
+[platform_validation.md](platform_validation.md) asks for.
 
-The machine `Root` store wants an administrator for the same reason the system
-keychain wants root, so the denial reporting fixed for macOS was applied here
-unseen. Whether `certutil` refuses an unelevated caller the way `security` does
-is not yet known -- that is part of what a Windows run would establish.
+```text
+==> windows-system trust install    system=installed: updated Windows trust store
+==> windows-system trust doctor     doctor: ca complete
+==> windows-system trust uninstall  system=removed: updated Windows trust store
+platform-check windows-system passed
+```
+
+A separately recorded root confirms the certificate that reached the machine
+`Root` store is devcert's: `certutil -store Root` reported
+`Cert Hash(sha1): a8b8ac3541f30ce149e04242bb9837bdd1b55e7a` for the CA it had
+just issued, and after `uninstall` the store holds nothing of ours.
+
+It took three runs to get there, and each failure was devcert's rather than the
+runner's.
+
+The first found every operation failing, elevated or not. Not `certutil`: the
+captured output of every trust-store command went to `/tmp`, spelled out, which
+is a directory Windows has not got. The spawn could not create the file it was
+told to capture into, and a failed spawn reads exactly like a command that ran
+and refused. `nss` and `java` on Windows had the same fate, unnoticed because
+nothing had run them there either.
+
+The second found `uninstall` reporting removals that had not happened.
+`certutil` indexes by SHA-1 and matches `-delstore` against that; handed
+devcert's SHA-256 identity it exits zero having deleted nothing. Two devcert
+roots were left trusted while the tool reported both gone -- the same defect
+fixed for the Linux backend before anything had run there either. Removal now
+asks by the hash the store keeps and reads the store back afterwards, because
+the exit status has been wrong about this once already.
+
+Outstanding: the unprivileged case. A hosted runner is already elevated, so the
+denial has to be reached through a restricted token (`runas /trustlevel:0x20000`),
+which would not start on this image. What is unexercised is therefore the
+reporting -- `permission-required` and exit 7 -- and not the store operations
+themselves. On macOS the equivalent path was exercised on a real machine and the
+two adapters answer the same way.
 
 ## NSS Databases
 
