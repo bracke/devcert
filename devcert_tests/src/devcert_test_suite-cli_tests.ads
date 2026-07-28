@@ -29,6 +29,12 @@ package Devcert_Test_Suite.Cli_Tests is
    overriding function Name (Item : Output_Mode_Test) return AUnit.Message_String;
    overriding procedure Run_Test (Item : in out Output_Mode_Test);
 
+   type Partial_Trust_Test is
+     new AUnit.Simple_Test_Cases.Test_Case with null record;
+   overriding function Name
+     (Item : Partial_Trust_Test) return AUnit.Message_String;
+   overriding procedure Run_Test (Item : in out Partial_Trust_Test);
+
    type P12_Stdin_Password_Test is
      new AUnit.Simple_Test_Cases.Test_Case with null record;
    overriding function Name

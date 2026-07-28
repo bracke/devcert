@@ -16,6 +16,7 @@ package body Devcert_Test_Suite is
       Result.Add_Test (new Cli_Tests.Architecture_Surface_Test);
       Result.Add_Test (new Cli_Tests.CLI_Contract_Test);
       Result.Add_Test (new Cli_Tests.Output_Mode_Test);
+      Result.Add_Test (new Cli_Tests.Partial_Trust_Test);
       Result.Add_Test (new Cli_Tests.P12_Stdin_Password_Test);
       Result.Add_Test (new Cli_Tests.Integration_Workflow_Test);
 

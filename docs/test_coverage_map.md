@@ -9,7 +9,11 @@ Packages: `Devcert.CLI`, `Devcert.Commands*`.
 Coverage: executable parser errors, no-mutation failures, certificate workflow,
 install workflow, `caroot` reporting a root without creating it, and the
 refusal of `--key-file` with `--csr` -- asserted through the diagnostic rather
-than the exit code, because an incomplete CSR fails either way. `--p12-password-stdin`
+than the exit code, because an incomplete CSR fails either way. Asking two stores at once is
+covered where the answers differ: the databases the caller owns accept the CA,
+the system store wants root, and the run is `Partial` with exit 8 and both
+outcomes named -- skipped aloud when elevated or when the system store is aimed
+at a directory of the suite's own, since neither would refuse. `--p12-password-stdin`
 is run with a password actually on standard input -- `Hostkit.Process.Run_Captured`
 feeds the subprocess a file -- and the bundle is then opened with that password
 and refused another.

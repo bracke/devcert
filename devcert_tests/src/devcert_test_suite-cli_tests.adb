@@ -6,6 +6,7 @@ with Ada.Text_IO;
 with Ada.Strings.Unbounded;
 with GNAT.OS_Lib;
 with Hostkit;
+with Hostkit.Host;
 with Hostkit.Process;
 with Devcert_Test_Suite.Paths;
 with Devcert_Core;
@@ -574,6 +575,143 @@ package body Devcert_Test_Suite.Cli_Tests is
                   (Paths.Scratch ("devcert-aunit-cli-unwanted.key")),
             "and writes no key when it refuses");
       end;
+   end Run_Test;
+
+   overriding function Name
+     (Item : Partial_Trust_Test) return AUnit.Message_String
+   is
+      pragma Unreferenced (Item);
+   begin
+      return AUnit.Format ("one store trusts the CA and the other refuses");
+   end Name;
+
+   --  Two stores, one answer each. A user asking for both on an ordinary
+   --  machine gets exactly this: the databases they own accept the CA, and the
+   --  system store wants root. Only the exit code's value was tested; the
+   --  aggregation that decides to use it had never run, and it is the part that
+   --  has to keep the two outcomes apart instead of flattening them into one.
+   overriding procedure Run_Test (Item : in out Partial_Trust_Test) is
+      pragma Unreferenced (Item);
+
+      function Has_Certutil return Boolean is
+         use type GNAT.OS_Lib.String_Access;
+         Found : GNAT.OS_Lib.String_Access :=
+           GNAT.OS_Lib.Locate_Exec_On_Path ("certutil");
+      begin
+         if Found = null then
+            return False;
+         end if;
+         GNAT.OS_Lib.Free (Found);
+         return True;
+      end Has_Certutil;
+
+      Root    : constant String := Paths.Scratch ("devcert-aunit-partial");
+      NSS_Dir : constant String := Paths.Scratch ("devcert-aunit-partial-nssdb");
+      Code    : Integer := 0;
+      Output  : Unbounded_String;
+
+      procedure Run_Devcert
+        (Args        : GNAT.OS_Lib.Argument_List;
+         Exit_Code   : out Integer;
+         Output_Text : out Unbounded_String)
+      is
+         Spawned     : Boolean := False;
+         Output_File : constant String := Paths.Scratch ("devcert-aunit-partial.out");
+      begin
+         if Ada.Directories.Exists (Output_File) then
+            Ada.Directories.Delete_File (Output_File);
+         end if;
+         GNAT.OS_Lib.Spawn
+           (Paths.Devcert_Executable, Args, Output_File, Spawned, Exit_Code,
+            Err_To_Out => True);
+         Output_Text :=
+           (if Ada.Directories.Exists (Output_File)
+            then To_Unbounded_String (Devcert_Secure_Files.Read (Output_File))
+            else Null_Unbounded_String);
+         if Ada.Directories.Exists (Output_File) then
+            Ada.Directories.Delete_File (Output_File);
+         end if;
+         if not Spawned then
+            Exit_Code := -1;
+         end if;
+      end Run_Devcert;
+   begin
+      --  Two things make this test unsafe rather than merely useless, and both
+      --  end it here. Elevated, the system store would take the certificate
+      --  rather than refuse it -- and it would be the real one. Pointed at a
+      --  directory of the suite's own, it would succeed for a different reason.
+      --  Either way there is no denial to observe, and the first would leave a
+      --  development CA trusted on whoever ran the suite.
+      if Hostkit.Host.Is_Elevated then
+         Ada.Text_IO.Put_Line
+           ("   (skipped: elevated, so the system store would accept the CA)");
+         return;
+      end if;
+
+      --  The suite points the Linux system store at a directory of its own
+      --  elsewhere, through this variable. Aimed there it would accept the CA
+      --  rather than refuse it, and there would be no denial to observe.
+      if Ada.Environment_Variables.Exists ("DEVCERT_LINUX_TRUST_DIR") then
+         Ada.Text_IO.Put_Line
+           ("   (skipped: the system store is aimed at a directory of ours)");
+         return;
+      end if;
+
+      if not Has_Certutil then
+         Ada.Text_IO.Put_Line
+           ("   (skipped: no certutil, so NSS would decline rather than accept)");
+         return;
+      end if;
+
+      if Ada.Directories.Exists (Root) then
+         Ada.Directories.Delete_Tree (Root);
+      end if;
+      if Ada.Directories.Exists (NSS_Dir) then
+         Ada.Directories.Delete_Tree (NSS_Dir);
+      end if;
+      Ada.Directories.Create_Path (NSS_Dir);
+
+      --  A database of ours, never the caller's own: this installs a CA.
+      Ada.Environment_Variables.Set ("DEVCERT_NSS_DB", NSS_Dir);
+
+      Run_Devcert
+        ([new String'("--ca-root"),
+          new String'(Root),
+          new String'("--plain"),
+          new String'("install"),
+          new String'("--trust-store"),
+          new String'("nss,system")],
+         Code,
+         Output);
+
+      Assert
+        (Code = Devcert_Exit_Codes.Partial_Success,
+         "a mixed result is its own exit code, not success and not failure;"
+         & " exit was " & Code'Image);
+      Assert
+        (Index (Output, "nss=installed") /= 0,
+         "the store that accepted the CA is reported as having accepted it");
+      Assert
+        (Index (Output, "system=permission-required") /= 0,
+         "and the one that refused is reported as a denial, not as an error");
+
+      --  Ours to take out again: the NSS database really does trust it now.
+      Run_Devcert
+        ([new String'("--ca-root"),
+          new String'(Root),
+          new String'("--plain"),
+          new String'("uninstall"),
+          new String'("--trust-store"),
+          new String'("nss")],
+         Code,
+         Output);
+      Assert
+        (Index (Output, "nss=removed") /= 0,
+         "and the anchor this test installed is removed again");
+
+      Ada.Environment_Variables.Clear ("DEVCERT_NSS_DB");
+      Ada.Directories.Delete_Tree (NSS_Dir);
+      Ada.Directories.Delete_Tree (Root);
    end Run_Test;
 
    overriding function Name
