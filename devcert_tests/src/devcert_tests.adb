@@ -21,6 +21,12 @@ begin
    --  in-process message rendering at the repository copy. Tests that cover
    --  catalog resolution set their own value and leave it cleared, which keeps
    --  spawned devcert processes on the runtime's own discovery order.
+   --  And pin the locale. The suite asserts on English text, and devcert now
+   --  follows the host's: on a German desktop every one of those assertions
+   --  would be comparing a translation with the English it was written against.
+   --  A test says what it means to say, not what the machine happens to speak.
+   Ada.Environment_Variables.Set ("DEVCERT_LOCALE", "en");
+
    Ada.Environment_Variables.Set
      ("DEVCERT_CATALOG",
       Devcert_Test_Suite.Paths.In_Repository ("share/devcert/messages.catalog"));

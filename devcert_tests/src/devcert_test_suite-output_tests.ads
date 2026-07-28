@@ -30,4 +30,8 @@ package Devcert_Test_Suite.Output_Tests is
      (Item : Security_Output_Test) return AUnit.Message_String;
    overriding procedure Run_Test (Item : in out Security_Output_Test);
 
+   type Translation_Test is new AUnit.Simple_Test_Cases.Test_Case with null record;
+   overriding function Name (Item : Translation_Test) return AUnit.Message_String;
+   overriding procedure Run_Test (Item : in out Translation_Test);
+
 end Devcert_Test_Suite.Output_Tests;

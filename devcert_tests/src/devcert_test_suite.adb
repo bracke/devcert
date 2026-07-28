@@ -20,6 +20,7 @@ package body Devcert_Test_Suite is
       Result.Add_Test (new Cli_Tests.P12_Stdin_Password_Test);
       Result.Add_Test (new Cli_Tests.Integration_Workflow_Test);
 
+      Result.Add_Test (new Output_Tests.Translation_Test);
       Result.Add_Test (new Output_Tests.Json_Escape_Test);
       Result.Add_Test (new Output_Tests.Json_Control_Escape_Test);
       Result.Add_Test (new Output_Tests.Json_Envelope_Test);

@@ -2,6 +2,8 @@ with AUnit.Assertions;
 with Ada.Directories;
 with Ada.Environment_Variables;
 with Ada.Strings;
+with Ada.Strings.Fixed;
+with Ada.Text_IO;
 with Ada.Strings.Unbounded;
 with GNAT.OS_Lib;
 with Devcert_Test_Suite.Paths;
@@ -191,7 +193,7 @@ package body Devcert_Test_Suite.Output_Tests is
       end Run_Devcert;
 
       Source_Catalog  : constant String :=
-        Paths.In_Repository ("config/messages/en.catalog");
+        Paths.In_Repository ("config/messages/messages.catalog");
       Bundled_Catalog : constant String :=
         Paths.In_Repository ("share/devcert/messages.catalog");
       Env_Catalog     : constant String := Paths.Scratch ("devcert-aunit-env.catalog");
@@ -222,6 +224,13 @@ package body Devcert_Test_Suite.Output_Tests is
       Assert
         (Devcert.Locale.Current = "de_DE.UTF-8",
          "LANG is used when devcert and LC overrides are absent");
+
+      --  And put it back. This test moves the process into another locale to
+      --  prove the precedence, and everything after it renders text: left in
+      --  German, the assertions below would be comparing a translation with the
+      --  English they were written against.
+      Ada.Environment_Variables.Clear ("LANG");
+      Ada.Environment_Variables.Set ("DEVCERT_LOCALE", "en");
 
       Assert_Catalog_Contains (Source_Catalog, "app.name");
       Assert_Catalog_Contains (Bundled_Catalog, "app.name");
@@ -382,6 +391,146 @@ package body Devcert_Test_Suite.Output_Tests is
               (Devcert_JSON.Artifact ("cert", "path", Paths.Scratch ("cert.pem"))),
             Secret) = 0,
          "artifact JSON does not contain private-key marker");
+   end Run_Test;
+
+   overriding function Name (Item : Translation_Test) return AUnit.Message_String is
+      pragma Unreferenced (Item);
+   begin
+      return AUnit.Format ("translations render as the bytes they were written in");
+   end Name;
+
+   --  Two things this locks, both found the hard way.
+   --
+   --  The catalog carries a locale for every European language, and each
+   --  locale must keep the {value} argument the English carries: a translation
+   --  that dropped it would print a message with the filename missing from it,
+   --  and nothing else would fail.
+   --
+   --  And the text has to survive being printed. Alire builds with -gnatW8,
+   --  which tells the binder to encode every byte above 127 on the way out --
+   --  so UTF-8 text came out doubled, and every accented language was mojibake.
+   --  That was true of an accented path or an internationalized domain name
+   --  long before there was anything to translate.
+   overriding procedure Run_Test (Item : in out Translation_Test) is
+      pragma Unreferenced (Item);
+
+      Catalog : constant String :=
+        Paths.In_Repository ("config/messages/messages.catalog");
+
+      Doubled : constant String :=
+        Character'Val (16#C3#) & Character'Val (16#83#)
+        & Character'Val (16#C2#);
+
+      File    : Ada.Text_IO.File_Type;
+      Locales : Natural := 0;
+      With_Value   : Natural := 0;
+
+      function Names_The_Value (Line : String) return Boolean is
+        (Ada.Strings.Fixed.Index (Line, "{value}") /= 0);
+
+      function Key_Of (Line : String) return String is
+         Dot   : constant Natural := Ada.Strings.Fixed.Index (Line, ".");
+         Space : constant Natural := Ada.Strings.Fixed.Index (Line, " = ");
+      begin
+         if Dot = 0 or else Space = 0 or else Space < Dot then
+            return "";
+         end if;
+         return Line (Dot + 1 .. Space - 1);
+      end Key_Of;
+
+      function Locale_Of (Line : String) return String is
+         Dot : constant Natural := Ada.Strings.Fixed.Index (Line, ".");
+      begin
+         return (if Dot = 0 then "" else Line (Line'First .. Dot - 1));
+      end Locale_Of;
+
+      English : Unbounded_String;
+   begin
+      --  Every English line, so a translation can be checked against its own.
+      Ada.Text_IO.Open (File, Ada.Text_IO.In_File, Catalog);
+      while not Ada.Text_IO.End_Of_File (File) loop
+         declare
+            Line : constant String := Ada.Text_IO.Get_Line (File);
+         begin
+            if Line'Length > 3 and then Line (Line'First .. Line'First + 2) = "en." then
+               Append (English, Line & ASCII.LF);
+            end if;
+         end;
+      end loop;
+      Ada.Text_IO.Close (File);
+
+      Ada.Text_IO.Open (File, Ada.Text_IO.In_File, Catalog);
+      while not Ada.Text_IO.End_Of_File (File) loop
+         declare
+            Line   : constant String := Ada.Text_IO.Get_Line (File);
+            Locale : constant String := Locale_Of (Line);
+            Key    : constant String := Key_Of (Line);
+         begin
+            if Key /= "" and then Locale /= "" and then Locale /= "en"
+              and then Locale /= "default_locale"
+            then
+               Locales := Locales + 1;
+               declare
+                  Own : constant Natural :=
+                    Index (English, "en." & Key & " = ");
+                  Stop : Natural;
+               begin
+                  Assert (Own /= 0, "translated key " & Key & " exists in English");
+                  Stop := Index (English, "" & ASCII.LF, Own);
+                  declare
+                     Source : constant String :=
+                       Slice (English, Own, Stop - 1);
+                  begin
+                     if Names_The_Value (Source) then
+                        With_Value := With_Value + 1;
+                        Assert
+                          (Names_The_Value (Line),
+                           Locale & "." & Key & " keeps its {value} argument");
+                     end if;
+                  end;
+               end;
+            end if;
+         end;
+      end loop;
+      Ada.Text_IO.Close (File);
+
+      Assert (Locales > 500, "the catalog carries the translations");
+      Assert (With_Value > 100, "and the {value} rule was exercised");
+
+      --  Printed, not merely stored: a doubled UTF-8 lead byte is what the
+      --  binder encoding did to every accented character.
+      declare
+         Code    : Integer := 0;
+         Spawned : Boolean := False;
+         Output  : Unbounded_String;
+         Log     : constant String := Paths.Scratch ("devcert-aunit-i18n.out");
+      begin
+         Ada.Environment_Variables.Set ("DEVCERT_LOCALE", "de");
+         GNAT.OS_Lib.Spawn
+           (Paths.Devcert_Executable,
+            [new String'("--plain"),
+             new String'("--color=definitely-not-a-color")],
+            Log,
+            Spawned,
+            Code,
+            Err_To_Out => True);
+         Ada.Environment_Variables.Set ("DEVCERT_LOCALE", "en");
+         Output :=
+           (if Ada.Directories.Exists (Log)
+            then To_Unbounded_String (Devcert_Secure_Files.Read (Log))
+            else Null_Unbounded_String);
+         if Ada.Directories.Exists (Log) then
+            Ada.Directories.Delete_File (Log);
+         end if;
+         Assert (Spawned, "devcert runs for the translation check");
+
+         Assert
+           (Index (Output, Doubled) = 0,
+            "an accented message is printed as the UTF-8 it was written in");
+         Assert
+           (Index (Output, "--color") /= 0,
+            "and it is the message about --color that was printed");
+      end;
    end Run_Test;
 
 end Devcert_Test_Suite.Output_Tests;

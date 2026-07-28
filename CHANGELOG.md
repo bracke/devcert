@@ -35,6 +35,14 @@ Initial development release.
   been failing as though it needed privileges.
 * Removing a trust anchor that is not installed says so instead of reporting a
   removal that did not happen.
+* Human-readable output is translated into 34 European languages, chosen by
+  `DEVCERT_LOCALE`, `LC_ALL`, `LC_MESSAGES` or `LANG`. The translations are not
+  reviewed by native speakers; machine-readable output does not move.
+* Non-ASCII output is the UTF-8 it was written in. Alire's `-gnatW8` also sets
+  the binder's run-time encoding, so `Ada.Text_IO` encoded every byte above 127
+  a second time on the way out: an accented path or an internationalized domain
+  name printed as mojibake, in English, long before there was anything to
+  translate.
 * Each trust store says what became of it, instead of the caller reading that
   back out of the sentence the store had just written. A denial was told apart
   from a broken store by searching the message for "requires permission", so

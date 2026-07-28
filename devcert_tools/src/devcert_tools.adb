@@ -166,6 +166,43 @@ procedure Devcert_Tools is
          raise;
    end SHA256_Hex;
 
+   --  Where the locale part of a catalog key ends: the first dot. "de.cli.usage"
+   --  is locale de, key cli.usage.
+   function Locale_End (Key : String) return Natural is
+   begin
+      for Index in Key'Range loop
+         if Key (Index) = '.' then
+            return Index - 1;
+         end if;
+      end loop;
+      return 0;
+   end Locale_End;
+
+   --  A language tag and then a key: two or three letters, optionally a region.
+   --  This used to insist on "en.", which was true only while English was the
+   --  one language in the catalog.
+   function Locale_Qualified (Key : String) return Boolean is
+      Last : constant Natural := Locale_End (Key);
+   begin
+      if Last = 0 or else Last = Key'Last then
+         return False;
+      end if;
+
+      declare
+         Tag : constant String := Key (Key'First .. Last);
+      begin
+         for Index in Tag'Range loop
+            if Tag (Index) not in 'a' .. 'z'
+              and then Tag (Index) not in 'A' .. 'Z'
+              and then Tag (Index) /= '-'
+            then
+               return False;
+            end if;
+         end loop;
+         return Tag'Length in 2 .. 7;
+      end;
+   end Locale_Qualified;
+
    function Is_Source_File (Name : String) return Boolean is
       L : constant String := Lower (Name);
    begin
@@ -369,7 +406,15 @@ procedure Devcert_Tools is
                         "tabs are forbidden; use spaces only");
                   end if;
 
-                  if Line'Length > 100 then
+                  --  Not the catalog: its format is one message per line, so
+                  --  a line cannot be wrapped, and a translation is longer than
+                  --  the English it came from -- in bytes twice over, since a
+                  --  Greek or Cyrillic character is two of them. Tabs and
+                  --  trailing space still apply.
+                  if Line'Length > 100
+                    and then not Project_Tools.Text.Ends_With
+                                   (Lower (Name), ".catalog")
+                  then
                      Fail
                        (State,
                         Path & ":" & Trim (Positive'Image (Line_Number)),
@@ -626,7 +671,7 @@ procedure Devcert_Tools is
 
    procedure Run_Catalog_Check is
       State : Check_State;
-      Source_Path : constant String := Project_Root & "/config/messages/en.catalog";
+      Source_Path : constant String := Project_Root & "/config/messages/messages.catalog";
       Ship_Path   : constant String := Project_Root & "/share/devcert/messages.catalog";
 
       procedure Validate_Catalog (Path : String) is
@@ -661,8 +706,32 @@ procedure Devcert_Tools is
                Fail_Line ("malformed message parameter braces");
             end if;
          end Check_Braces;
+         --  The English keys, read once: a translation of a key English does
+         --  not have is a message nothing can ever ask for, and the file is
+         --  already open below.
+         English_Keys : Unbounded_String;
       begin
          Project_Tools.Files.Require_File (Path, "messages catalog");
+
+         Open (File, In_File, Path);
+         while not End_Of_File (File) loop
+            declare
+               Line  : constant String := Trim (Get_Line (File));
+               Equal : constant Natural := Ada.Strings.Fixed.Index (Line, "=");
+            begin
+               if Equal /= 0
+                 and then Project_Tools.Text.Starts_With (Line, "en.")
+               then
+                  Append
+                    (English_Keys,
+                     ASCII.LF
+                     & Trim (Line (Line'First + 3 .. Equal - 1))
+                     & ASCII.LF);
+               end if;
+            end;
+         end loop;
+         Close (File);
+
          Open (File, In_File, Path);
          while not End_Of_File (File) loop
             declare
@@ -690,8 +759,19 @@ procedure Devcert_Tools is
                         Append (Seen, Mark);
                         if Key = "default_locale" then
                            Default_Locale_Count := Default_Locale_Count + 1;
-                        elsif not Project_Tools.Text.Starts_With (Key, "en.") then
+                        elsif not Locale_Qualified (Key) then
                            Fail_Line ("message id must be locale-qualified");
+                        elsif not Project_Tools.Text.Contains
+                                    (To_String (English_Keys),
+                                     ASCII.LF
+                                     & Key (Locale_End (Key) + 2 .. Key'Last)
+                                     & ASCII.LF)
+                        then
+                           --  A translation of a key English does not have is a
+                           --  message nothing can ever ask for.
+                           Fail_Line
+                             ("no English original for "
+                              & Key (Locale_End (Key) + 2 .. Key'Last));
                         end if;
                         Check_Braces (Value);
                      end;
@@ -878,7 +958,7 @@ procedure Devcert_Tools is
       Project_Tools.Release_Checks.Require_Text
         (Checks, "docs/final_acceptance.md", "<!-- generated:devcert-acceptance -->");
       if Project_Tools.Files.Read_Raw_File
-          (Project_Root & "/config/messages/en.catalog")
+          (Project_Root & "/config/messages/messages.catalog")
         /= Project_Tools.Files.Read_Raw_File
           (Project_Root & "/share/devcert/messages.catalog")
       then
