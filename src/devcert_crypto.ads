@@ -13,6 +13,10 @@ package Devcert_Crypto is
 
    function SHA256_Fingerprint (Data : String) return String;
 
+   --  The certificate's own fingerprint, as every other reader shows it: over
+   --  the DER, not over the armoured text.
+   function Certificate_Fingerprint (Certificate_PEM : String) return String;
+
    function Create_CA
      (Certificate_PEM : out Unbounded_String;
       Private_Key_PEM : out Unbounded_String) return Operation_Status;

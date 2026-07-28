@@ -28,6 +28,14 @@ Packages: `Devcert.CA_Store`, `Devcert_State`, `Devcert.Locks`.
 Coverage: missing, incomplete, invalid metadata/material, key mismatch,
 permissions, and writer locking.
 
+## Chain Verification
+
+Package: `Devcert_Crypto`, through `openssl`.
+
+Coverage: an issued leaf verifies against the CA that signed it and not against
+one that did not, and the fingerprint devcert reports is the one `openssl`
+reports for the same certificate. Skipped aloud where the host has no `openssl`.
+
 ## Certificate Policy
 
 Packages: `Devcert.Certificate_Requests`, `Devcert.Certificate_Policies`,

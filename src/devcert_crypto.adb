@@ -46,6 +46,11 @@ package body Devcert_Crypto is
       return Result;
    end Hex_Image;
 
+   function Certificate_Fingerprint (Certificate_PEM : String) return String is
+   begin
+      return CryptoLib.Certificates.Fingerprint (Certificate_PEM);
+   end Certificate_Fingerprint;
+
    function SHA256_Fingerprint (Data : String) return String is
    begin
       return Hex_Image (CryptoLib.Hashes.SHA256 (To_Bytes (Data)));

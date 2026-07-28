@@ -186,7 +186,7 @@ package body Devcert_Test_Suite.Ca_Tests is
          & "created-at=unknown" & ASCII.LF
          & "key-algorithm=P-384" & ASCII.LF
          & "certificate-fingerprint="
-         & Devcert_Crypto.SHA256_Fingerprint
+         & Devcert_Crypto.Certificate_Fingerprint
            (Devcert_Secure_Files.Read (Devcert_State.CA_Certificate_Path))
          & ASCII.LF,
          Secret => True);
@@ -239,7 +239,7 @@ package body Devcert_Test_Suite.Ca_Tests is
             & "created-at=test" & ASCII.LF
             & "key-algorithm=P-384" & ASCII.LF
             & "certificate-fingerprint="
-            & Devcert_Crypto.SHA256_Fingerprint
+            & Devcert_Crypto.Certificate_Fingerprint
               (Devcert_Secure_Files.Read (Devcert_State.CA_Certificate_Path))
             & ASCII.LF,
             Secret => True);

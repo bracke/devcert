@@ -42,6 +42,12 @@ Initial development release.
   failed its own MAC check -- OpenSSL refused the password it was built with --
   because the password was widened to a BMPString twice before the MAC key was
   derived.
+* The fingerprint devcert reports and derives anchor names from is the
+  certificate's own, over its DER, as openssl and a browser's certificate
+  manager show it. It was taken over the armoured text, so it matched nothing a
+  person could compare it with and changed if the same certificate was
+  re-wrapped. An existing CA root's metadata will no longer match: delete it and
+  let devcert create one.
 * The NSS store covers Firefox. `$HOME/.pki/nssdb` is the database Chromium
   reads and Firefox does not; devcert now also acts on every Firefox profile
   holding a `cert9.db`, reporting each database and staying

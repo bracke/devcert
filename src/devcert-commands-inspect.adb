@@ -19,7 +19,7 @@ package body Devcert.Commands.Inspect is
                Devcert_Messages.Text
                   ("inspect.ca",
                   Certificate & " fingerprint="
-                  & Devcert_Crypto.SHA256_Fingerprint (Certificate_Text)));
+                  & Devcert_Crypto.Certificate_Fingerprint (Certificate_Text)));
          end;
       else
          Devcert.Output.Info

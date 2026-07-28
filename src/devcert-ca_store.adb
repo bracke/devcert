@@ -43,14 +43,14 @@ package body Devcert.CA_Store is
         & "created-at=" & Devcert.Clock.Now & ASCII.LF
         & "key-algorithm=P-384" & ASCII.LF
         & "certificate-fingerprint="
-        & Devcert_Crypto.SHA256_Fingerprint (Certificate)
+        & Devcert_Crypto.Certificate_Fingerprint (Certificate)
         & ASCII.LF;
    end Metadata_For;
 
    function Metadata_Matches (Metadata : String; Certificate : String) return Boolean is
       Needle : constant String :=
         "certificate-fingerprint="
-        & Devcert_Crypto.SHA256_Fingerprint (Certificate);
+        & Devcert_Crypto.Certificate_Fingerprint (Certificate);
    begin
       return Ada.Strings.Fixed.Index (Metadata, "format-version=1") /= 0
         and then Ada.Strings.Fixed.Index (Metadata, "managed-by=devcert") /= 0

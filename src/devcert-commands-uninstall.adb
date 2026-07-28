@@ -45,7 +45,7 @@ package body Devcert.Commands.Uninstall is
            (Selection,
             Devcert_Trust_Stores.Remove,
             Certificate,
-            Devcert_Crypto.SHA256_Fingerprint (Certificate_Text),
+            Devcert_Crypto.Certificate_Fingerprint (Certificate_Text),
             Trust_State,
             Message);
       end;

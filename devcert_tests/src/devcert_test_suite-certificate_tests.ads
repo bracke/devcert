@@ -46,4 +46,10 @@ package Devcert_Test_Suite.Certificate_Tests is
      (Item : Certificate_Custom_PKCS12_Test) return AUnit.Message_String;
    overriding procedure Run_Test (Item : in out Certificate_Custom_PKCS12_Test);
 
+   type Chain_Verification_Test is
+     new AUnit.Simple_Test_Cases.Test_Case with null record;
+   overriding function Name
+     (Item : Chain_Verification_Test) return AUnit.Message_String;
+   overriding procedure Run_Test (Item : in out Chain_Verification_Test);
+
 end Devcert_Test_Suite.Certificate_Tests;

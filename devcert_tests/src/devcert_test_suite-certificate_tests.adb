@@ -19,6 +19,8 @@ with Ada.Directories;
 
 with Devcert_Test_Suite.Paths;
 
+with Ada.Characters.Handling;
+
 package body Devcert_Test_Suite.Certificate_Tests is
    use AUnit.Assertions;
    use Ada.Strings.Unbounded;
@@ -346,6 +348,98 @@ package body Devcert_Test_Suite.Certificate_Tests is
    begin
       return AUnit.Format ("custom certificate PKCS12 workflow");
    end Name;
+   overriding function Name
+     (Item : Chain_Verification_Test) return AUnit.Message_String
+   is
+      pragma Unreferenced (Item);
+   begin
+      return AUnit.Format ("issued chain verifies");
+   end Name;
+
+   --  The assertion that has been missing all along. Every other certificate
+   --  test says a file exists or some text appears, which was true of a CA no
+   --  browser would import and of a bundle no tool could open. This asks a
+   --  reader that was not written here whether the leaf chains to the CA.
+   overriding procedure Run_Test (Item : in out Chain_Verification_Test) is
+      pragma Unreferenced (Item);
+      CA_Cert    : Unbounded_String;
+      CA_Key     : Unbounded_String;
+      Leaf       : Unbounded_String;
+      Key        : Unbounded_String;
+      Other_CA   : Unbounded_String;
+      Other_Key  : Unbounded_String;
+      CA_Path    : constant String := Paths.Scratch ("devcert-aunit-chain-ca.pem");
+      Leaf_Path  : constant String := Paths.Scratch ("devcert-aunit-chain-leaf.pem");
+      Other_Path : constant String := Paths.Scratch ("devcert-aunit-chain-other.pem");
+   begin
+      Reset_Temp_Home ("chain");
+      Assert
+        (Devcert_Crypto.Create_CA (CA_Cert, CA_Key) = Devcert_Crypto.Ok,
+         "CA creation succeeds for the chain test");
+      Devcert_Secure_Files.Atomic_Write
+        (Devcert_State.CA_Certificate_Path, To_String (CA_Cert));
+      Devcert_Secure_Files.Atomic_Write
+        (Devcert_State.CA_Private_Key_Path, To_String (CA_Key), Secret => True);
+      Assert
+        (Devcert_Crypto.Issue_Certificate ("localhost", Leaf, Key)
+         = Devcert_Crypto.Ok,
+         "leaf issuance succeeds for the chain test");
+
+      if not Has_Openssl then
+         Ada.Text_IO.Put_Line
+           ("   (skipped: no openssl on this host to verify the chain)");
+         return;
+      end if;
+
+      Devcert_Secure_Files.Atomic_Write (CA_Path, To_String (CA_Cert));
+      Devcert_Secure_Files.Atomic_Write (Leaf_Path, To_String (Leaf));
+
+      Assert
+        (Openssl_Succeeds
+           ([new String'("verify"),
+             new String'("-CAfile"),
+             new String'(CA_Path),
+             new String'(Leaf_Path)]),
+         "the issued leaf verifies against the CA that signed it");
+
+      --  A second CA must not verify it, or the check above would pass for any
+      --  certificate at all.
+      Assert
+        (Devcert_Crypto.Create_CA (Other_CA, Other_Key) = Devcert_Crypto.Ok,
+         "a second CA can be created");
+      Devcert_Secure_Files.Atomic_Write (Other_Path, To_String (Other_CA));
+      Assert
+        (not Openssl_Succeeds
+           ([new String'("verify"),
+             new String'("-CAfile"),
+             new String'(Other_Path),
+             new String'(Leaf_Path)]),
+         "and does not verify against a CA that did not sign it");
+
+      --  What devcert reports as a fingerprint has to be the certificate's own.
+      declare
+         Reported : constant String :=
+           Ada.Characters.Handling.To_Lower
+             (Openssl_Output
+                ([new String'("x509"),
+                  new String'("-in"),
+                  new String'(CA_Path),
+                  new String'("-noout"),
+                  new String'("-fingerprint"),
+                  new String'("-sha256")]));
+         Ours : constant String :=
+           Devcert_Crypto.Certificate_Fingerprint (To_String (CA_Cert));
+      begin
+         Assert
+           (Index (To_Unbounded_String (Reported), Ours) /= 0,
+            "the fingerprint devcert reports is the certificate's own");
+      end;
+
+      Ada.Directories.Delete_File (CA_Path);
+      Ada.Directories.Delete_File (Leaf_Path);
+      Ada.Directories.Delete_File (Other_Path);
+   end Run_Test;
+
    overriding procedure Run_Test
      (Item : in out Certificate_Custom_PKCS12_Test)
    is
