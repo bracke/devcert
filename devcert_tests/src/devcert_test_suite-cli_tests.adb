@@ -2,8 +2,11 @@ with AUnit.Assertions;
 with Ada.Directories;
 with Ada.Environment_Variables;
 with Ada.Strings;
+with Ada.Text_IO;
 with Ada.Strings.Unbounded;
 with GNAT.OS_Lib;
+with Hostkit;
+with Hostkit.Process;
 with Devcert_Test_Suite.Paths;
 with Devcert_Core;
 with Devcert_Exit_Codes;
@@ -571,6 +574,112 @@ package body Devcert_Test_Suite.Cli_Tests is
                   (Paths.Scratch ("devcert-aunit-cli-unwanted.key")),
             "and writes no key when it refuses");
       end;
+   end Run_Test;
+
+   overriding function Name
+     (Item : P12_Stdin_Password_Test) return AUnit.Message_String
+   is
+      pragma Unreferenced (Item);
+   begin
+      return AUnit.Format ("a PKCS#12 password read from standard input");
+   end Name;
+
+   --  The one option that cannot be exercised by spawning devcert with
+   --  arguments: the password arrives on standard input, so the test has to
+   --  put it there. Until Hostkit.Process could feed a subprocess a file there
+   --  was no way to run this path at all, and only its duplicate-option error
+   --  was covered -- a bundle locked with the wrong bytes, or with none, would
+   --  have looked exactly like a bundle.
+   overriding procedure Run_Test (Item : in out P12_Stdin_Password_Test) is
+      pragma Unreferenced (Item);
+
+      Root      : constant String := Paths.Scratch ("devcert-aunit-p12-stdin");
+      Password  : constant String := Paths.Scratch ("devcert-aunit-p12-stdin.pw");
+      Bundle    : constant String := Paths.Scratch ("devcert-aunit-p12-stdin.p12");
+      Log       : constant String := Paths.Scratch ("devcert-aunit-p12-stdin.out");
+      Secret    : constant String := "correct-horse-battery";
+
+      Arguments : Hostkit.String_Vectors.Vector;
+      Outcome   : Hostkit.Process.Process_Outcome;
+   begin
+      if Ada.Directories.Exists (Root) then
+         Ada.Directories.Delete_Tree (Root);
+      end if;
+      if Ada.Directories.Exists (Password) then
+         Ada.Directories.Delete_File (Password);
+      end if;
+      if Ada.Directories.Exists (Bundle) then
+         Ada.Directories.Delete_File (Bundle);
+      end if;
+
+      Devcert_Secure_Files.Atomic_Write (Password, Secret & ASCII.LF);
+
+      Arguments.Append (To_Unbounded_String ("--ca-root"));
+      Arguments.Append (To_Unbounded_String (Root));
+      Arguments.Append (To_Unbounded_String ("--plain"));
+      Arguments.Append (To_Unbounded_String ("cert"));
+      Arguments.Append (To_Unbounded_String ("--p12-file"));
+      Arguments.Append (To_Unbounded_String (Bundle));
+      Arguments.Append (To_Unbounded_String ("--p12-password-stdin"));
+      Arguments.Append (To_Unbounded_String ("localhost"));
+
+      Outcome :=
+        Hostkit.Process.Run_Captured
+          (Program     => Paths.Devcert_Executable,
+           Arguments   => Arguments,
+           Stdin_Path  => Password,
+           Stdout_Path => Log,
+           Stderr_Path => Log,
+           --  A password that never arrives is a wait, not a failure; the
+           --  deadline is what turns one into the other.
+           Timeout_Ms  => 60_000);
+
+      Assert (Outcome.Started, "devcert runs with a password on standard input");
+      Assert
+        (not Outcome.Timed_Out,
+         "and does not sit waiting for input it was already given");
+      Assert
+        (Outcome.Exit_Status = Devcert_Exit_Codes.Success,
+         "and succeeds; exit was " & Outcome.Exit_Status'Image);
+      Assert
+        (Ada.Directories.Exists (Bundle), "and writes the bundle it was asked for");
+
+      if not Has_Openssl then
+         Ada.Text_IO.Put_Line
+           ("   (skipped: no openssl on this host to open the bundle)");
+         return;
+      end if;
+
+      --  The point of the password is that it is the one the bundle now wants.
+      Assert
+        (Openssl_Succeeds
+           ([new String'("pkcs12"),
+             new String'("-in"),
+             new String'(Bundle),
+             new String'("-nokeys"),
+             new String'("-passin"),
+             new String'("pass:" & Secret),
+             new String'("-out"),
+             new String'(Paths.Scratch ("devcert-aunit-p12-stdin-read.pem"))]),
+         "and the bundle opens with the password it was given on stdin");
+      Assert
+        (not Openssl_Succeeds
+           ([new String'("pkcs12"),
+             new String'("-in"),
+             new String'(Bundle),
+             new String'("-nokeys"),
+             new String'("-passin"),
+             new String'("pass:" & Secret & "-not"),
+             new String'("-out"),
+             new String'(Paths.Scratch ("devcert-aunit-p12-stdin-read.pem"))]),
+         "and not with another, so the password is what locked it");
+
+      Ada.Directories.Delete_File (Password);
+      Ada.Directories.Delete_File (Bundle);
+      if Ada.Directories.Exists (Log) then
+         Ada.Directories.Delete_File (Log);
+      end if;
+      Ada.Directories.Delete_Tree (Root);
    end Run_Test;
 
    overriding function Name (Item : Output_Mode_Test) return AUnit.Message_String is

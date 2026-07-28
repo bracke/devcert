@@ -9,7 +9,10 @@ Packages: `Devcert.CLI`, `Devcert.Commands*`.
 Coverage: executable parser errors, no-mutation failures, certificate workflow,
 install workflow, `caroot` reporting a root without creating it, and the
 refusal of `--key-file` with `--csr` -- asserted through the diagnostic rather
-than the exit code, because an incomplete CSR fails either way.
+than the exit code, because an incomplete CSR fails either way. `--p12-password-stdin`
+is run with a password actually on standard input -- `Hostkit.Process.Run_Captured`
+feeds the subprocess a file -- and the bundle is then opened with that password
+and refused another.
 
 Every command group is exercised through the executable rather than by calling
 its package: `Devcert.CLI`, `Devcert.Commands.*` and `Devcert.Output.*` have no
