@@ -72,21 +72,10 @@ procedure Devcert_Tools is
       return Ada.Strings.Fixed.Trim (Text, Ada.Strings.Both);
    end Trim;
 
-   function Starts_With (Text : String; Prefix : String) return Boolean is
-   begin
-      return Text'Length >= Prefix'Length
-        and then Text (Text'First .. Text'First + Prefix'Length - 1) = Prefix;
-   end Starts_With;
-
-   function Contains (Text : String; Pattern : String) return Boolean is
-   begin
-      return Ada.Strings.Fixed.Index (Text, Pattern) /= 0;
-   end Contains;
-
    function Is_Blank_Or_Comment (Text : String) return Boolean is
       Clean : constant String := Trim (Text);
    begin
-      return Clean = "" or else Starts_With (Clean, "#");
+      return Clean = "" or else Project_Tools.Text.Starts_With (Clean, "#");
    end Is_Blank_Or_Comment;
 
    function Is_Allowed
@@ -123,7 +112,7 @@ procedure Devcert_Tools is
          begin
             if Clean = "[[pins]]" then
                In_Pin_Block := True;
-            elsif In_Pin_Block and then Starts_With (Clean, "[[") then
+            elsif In_Pin_Block and then Project_Tools.Text.Starts_With (Clean, "[[") then
                In_Pin_Block := False;
                Append (Result, Line);
                Append (Result, ASCII.LF);
@@ -291,7 +280,7 @@ procedure Devcert_Tools is
             if Clean = "[[depends-on]]" then
                In_Dependency := True;
                Dependency_Set := False;
-            elsif Starts_With (Clean, "[[") then
+            elsif Project_Tools.Text.Starts_With (Clean, "[[") then
                In_Dependency := False;
             elsif In_Dependency and then not Dependency_Set
               and then not Is_Blank_Or_Comment (Clean)
@@ -326,7 +315,7 @@ procedure Devcert_Tools is
                   Line : constant String := Get_Line (File);
                begin
                   for Token of Tokens loop
-                     if Contains (Lower (Line), To_String (Token)) then
+                     if Project_Tools.Text.Contains (Lower (Line), To_String (Token)) then
                         Fail
                           (State,
                            Path & ":" & Trim (Positive'Image (Line_Number)),
@@ -528,7 +517,7 @@ procedure Devcert_Tools is
    function Relative_To (Root : String; Path : String) return String is
       Prefix : constant String := Root & "/";
    begin
-      if Starts_With (Path, Prefix) then
+      if Project_Tools.Text.Starts_With (Path, Prefix) then
          return Path (Path'First + Prefix'Length .. Path'Last);
       else
          return Path;
@@ -695,13 +684,13 @@ procedure Devcert_Tools is
                         if Key = "" or else Value = "" then
                            Fail_Line ("catalog keys and values must be non-empty");
                         end if;
-                        if Contains (To_String (Seen), Mark) then
+                        if Project_Tools.Text.Contains (To_String (Seen), Mark) then
                            Fail_Line ("duplicate message id " & Key);
                         end if;
                         Append (Seen, Mark);
                         if Key = "default_locale" then
                            Default_Locale_Count := Default_Locale_Count + 1;
-                        elsif not Starts_With (Key, "en.") then
+                        elsif not Project_Tools.Text.Starts_With (Key, "en.") then
                            Fail_Line ("message id must be locale-qualified");
                         end if;
                         Check_Braces (Value);

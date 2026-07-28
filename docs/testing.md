@@ -3,10 +3,16 @@
 The automated test suite lives in `devcert_tests` and uses AUnit. Runtime code
 does not depend on AUnit.
 
+The suite is split by area, one package each: `Cli_Tests`, `Output_Tests`,
+`Ca_Tests`, `Certificate_Tests` and `Trust_Tests`, with `Support` holding what
+they share -- a disposable CA root, and whether this host's system store is one
+a test may mutate. A new test goes with its area rather than onto the end of
+one file.
+
 The public-package coverage map is maintained in
 `docs/test_coverage_map.md`.
 
-The default suite currently contains 31 deterministic tests. Categories covered
+The default suite currently contains 32 deterministic tests. Categories covered
 by automated tests include:
 
 * CLI contracts through stable exit-code, JSON envelope, duplicate option,
