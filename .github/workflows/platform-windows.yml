@@ -152,13 +152,19 @@ jobs:
           # runas /trustlevel:0x20000 drops to a restricted token without needing
           # another account or a password. It does not wait, so the child writes
           # its own exit status and this waits for that.
+          # runas needs the Secondary Logon service, which a server image may
+          # leave disabled. Ask, and say so, rather than reading exit 1 as a
+          # verdict about devcert.
+          echo "seclogon: $(cmd //c "sc query seclogon" 2>&1 | tr -d '\r' \
+            | grep -i "STATE" || echo "not queryable")"
+          cmd //c "sc start seclogon" 2>&1 | tr -d '\r' | head -3
           rm -rf "$RUNNER_TEMP/devcert-unelevated" unelevated.txt
           UNPRIV_ROOT="$(cygpath -w "$RUNNER_TEMP")\\devcert-unelevated"
           INNER="bin\\devcert.exe --ca-root ${UNPRIV_ROOT}"
           INNER="${INNER} --plain install --trust-store system"
           INNER="${INNER} > unelevated.txt 2>&1"
           INNER="${INNER} & echo exit=%ERRORLEVEL% >> unelevated.txt"
-          cmd //c "runas /trustlevel:0x20000 \"cmd /c ${INNER}\""
+          cmd //c "runas /trustlevel:0x20000 \"cmd /c ${INNER}\"" 2>&1
           RUNAS_STATUS=$?
           for attempt in $(seq 1 30); do
             if [ -s unelevated.txt ] && grep -q "exit=" unelevated.txt; then break; fi
