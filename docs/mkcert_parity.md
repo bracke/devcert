@@ -10,8 +10,9 @@ What each column asserts:
   directory of the suite's own.
 * **Host validation** -- it has been run against the real thing on a host, with
   the run recorded in [platform_evidence.md](platform_evidence.md). `Pending`
-  means no such run exists; `n/a` marks a feature that does not touch a host
-  trust store.
+  means no such run exists; `Partial` means one was made and left something
+  unexercised, which the evidence names; `n/a` marks a feature that does not
+  touch a host trust store.
 * **Documented** -- covered by the documentation.
 
 | Feature | Implemented | Suite | Host validation | Documented |
@@ -33,7 +34,7 @@ What each column asserts:
 | NSS trust | Implemented | Tested | Linux | Yes |
 | Firefox trust | Implemented | Tested | Linux | Yes |
 | Java trust | Implemented | Tested | Pending | Yes |
-| macOS trust | Implemented | Tested | Pending | Yes |
+| macOS trust | Implemented | Tested | Partial | Yes |
 | Windows trust | Implemented | Tested | Pending | Yes |
 | fingerprint-authoritative removal | Implemented | Tested | Linux | Yes |
 | JSON output | Implemented | Tested | n/a | Yes |

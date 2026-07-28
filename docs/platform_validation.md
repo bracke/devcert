@@ -56,13 +56,15 @@ on Apple silicon it runs under Rosetta.
 Then, on a disposable account or machine:
 
 ```text
-DEVCERT_RUN_PLATFORM_TRUST_TESTS=1 \
-  devcert_tools platform-check macos-system
+sudo DEVCERT_RUN_PLATFORM_TRUST_TESTS=1 \
+  ./devcert_tools/bin/devcert_tools platform-check macos-system
 ```
 
 The same sequence as the Linux target, against the keychain through the
-`security` command. Adding the root certificate to the system keychain asks for
-authentication, so run it where that can be answered.
+`security` command. Under `sudo`, because `/Library/Keychains/System.keychain`
+belongs to root: `security add-trusted-cert` answers an unprivileged caller with
+`SecCertificateAddToKeychain: Write permissions error.` and devcert reports that
+as `permission-required` and exit 7.
 
 Each target refuses to run anywhere but on its own host: the system store is
 whatever the machine underfoot has, so running the macOS check on Linux would

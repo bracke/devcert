@@ -73,15 +73,52 @@ question.
 
 ## macOS System Store
 
-Not validated.
+Partially validated: the adapter works, the tooling around it did not.
+
+| | |
+| --- | --- |
+| Date | 2026-07-28 |
+| Operating system | macOS 14.8.7 (23J520), x86_64 |
+| devcert commit | `f0f587f` |
+| cryptolib commit | `1025377` |
 
 The keychain adapter could not be reached before `5bfdb5f`: the host was
 detected by comparing `OSTYPE` to `darwin`, and `OSTYPE` is a shell variable a
-spawned process does not inherit, so every macOS was treated as a Linux. The
-adapter is on the default path there now and has never been executed on a Mac.
-The CI matrix does not close this: it builds and runs the suite on macOS, but
-skips every assertion that would mutate the system store. What closes it is a
-run of `devcert_tools platform-check macos-system` on a Mac, recorded here.
+spawned process does not inherit, so every macOS was treated as a Linux. This
+was its first execution on a Mac.
+
+Unprivileged, every operation failed:
+
+```text
+macos-system trust install    system=error: failed to update macOS trust store
+macos-system trust uninstall  system=error: failed to update macOS trust store
+keychain after install        no devcert certificate present
+```
+
+Run by hand, `security` gave the reason devcert did not:
+
+```text
+security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain rootCA.pem
+SecCertificateAddToKeychain: Write permissions error.      exit 1
+sudo security add-trusted-cert ...                          exit 0
+```
+
+So three things hold. The keychain accepts the P-384 CA -- the algorithm that
+NSS refused was not a problem here. `security delete-certificate -Z` takes the
+SHA-256 hash devcert computes: the keychain reported
+`105ECBF970944EF16442D4C525ACC4E0D77AF7894EE9AD33A31443D77542B349` for a CA
+whose devcert fingerprint was `10:5E:CB:F9:...:B3:49`, and `devcert uninstall`
+under `sudo` removed it. And the failure was privileges throughout.
+
+What was wrong was the report: a denial came back as `error` and exit 6, where
+Linux answers the same situation with `permission-required` and exit 7. Fixed
+by asking `Hostkit.Host.Is_Elevated` once an attempt has failed -- the keychain
+decides whether it will have us, and the privilege only explains a refusal
+afterwards.
+
+Outstanding: a run of `sudo devcert_tools platform-check macos-system` end to
+end on the fixed build, recorded here. Everything it exercises has now been
+executed by hand, but not in one pass through the tooling.
 
 ## Windows System Store
 
@@ -90,7 +127,12 @@ Not validated.
 `certutil` is reached through the same live command adapter as macOS. CI builds
 and runs the suite on Windows and skips the mutating assertions there too. What
 closes it is a run of `devcert_tools platform-check windows-system` on Windows,
-recorded here.
+in an elevated console, recorded here.
+
+The machine `Root` store wants an administrator for the same reason the system
+keychain wants root, so the denial reporting fixed for macOS was applied here
+unseen. Whether `certutil` refuses an unelevated caller the way `security` does
+is not yet known -- that is part of what a Windows run would establish.
 
 ## NSS Databases
 

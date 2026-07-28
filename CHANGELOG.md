@@ -35,6 +35,13 @@ Initial development release.
   been failing as though it needed privileges.
 * Removing a trust anchor that is not installed says so instead of reporting a
   removal that did not happen.
+* A macOS or Windows trust store that refuses an unprivileged caller is
+  reported as `permission-required` and exit 7, the way Linux already reported
+  it, rather than as a broken store. The system keychain belongs to root and the
+  machine `Root` store to an administrator, so this is the ordinary case there,
+  and the one thing the message did not say was that it has to run under `sudo`.
+  Established by the first execution of the keychain adapter on a Mac; see
+  [docs/platform_evidence.md](docs/platform_evidence.md).
 * Identity validation, PEM comparison and PEM sniffing are asked of
   `cryptolib` rather than reimplemented: one set of rules decides what a
   certificate may contain, and it is the one that has to encode it.

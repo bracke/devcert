@@ -1031,10 +1031,26 @@ package body Devcert_Trust_Stores is
                Ran);
       end case;
       Success := Ran;
-      Message :=
-        Ada.Strings.Unbounded.To_Unbounded_String
-          ((if Ran then "updated" else "failed to update")
-           & " macOS trust store");
+
+      --  A denial is not a broken store, and on macOS it is the ordinary case:
+      --  the system keychain belongs to root. Reported as an error, the only
+      --  thing wrong -- that this has to run under sudo -- was the one thing
+      --  the message did not say. The privilege is asked about only once the
+      --  attempt has failed: whether a keychain will have us is the keychain's
+      --  answer to give, not ours to predict.
+      if Ran then
+         Message :=
+           Ada.Strings.Unbounded.To_Unbounded_String ("updated macOS trust store");
+      elsif not Hostkit.Host.Is_Elevated then
+         Message :=
+           Ada.Strings.Unbounded.To_Unbounded_String
+             ("macOS trust store update requires permission for "
+              & "/Library/Keychains/System.keychain");
+      else
+         Message :=
+           Ada.Strings.Unbounded.To_Unbounded_String
+             ("failed to update macOS trust store");
+      end if;
    end Apply_MacOS;
 
    procedure Apply_Windows
@@ -1071,10 +1087,22 @@ package body Devcert_Trust_Stores is
                Ran);
       end case;
       Success := Ran;
-      Message :=
-        Ada.Strings.Unbounded.To_Unbounded_String
-          ((if Ran then "updated" else "failed to update")
-           & " Windows trust store");
+
+      --  The machine Root store is the administrator's, the same way the system
+      --  keychain is root's; see the note in Apply_MacOS.
+      if Ran then
+         Message :=
+           Ada.Strings.Unbounded.To_Unbounded_String ("updated Windows trust store");
+      elsif not Hostkit.Host.Is_Elevated then
+         Message :=
+           Ada.Strings.Unbounded.To_Unbounded_String
+             ("Windows trust store update requires permission for "
+              & "the machine Root certificate store");
+      else
+         Message :=
+           Ada.Strings.Unbounded.To_Unbounded_String
+             ("failed to update Windows trust store");
+      end if;
    end Apply_Windows;
 
    procedure Apply

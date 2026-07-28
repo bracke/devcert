@@ -902,11 +902,96 @@ procedure Devcert_Tools is
          end if;
       end Require_Row;
 
-      procedure Reject_Cell (Value : String) is
+      --  Which column a cell is in decides whether it may say Partial. A
+      --  feature is implemented or it is not, and a half-claim there is what
+      --  this check exists to catch. Host validation is different: a run
+      --  against a real trust store can establish some of what it set out to
+      --  and leave the rest, and calling that Pending would say no run
+      --  happened. The evidence file names what is missing.
+      function Column_Of (Header : String; Title : String) return Natural is
+         Index  : Natural := 0;
+         Cursor : Positive := Header'First;
       begin
-         if Project_Tools.Files.Line_Contains (Path, "| " & Value & " |") then
-            Fail (State, Path, "parity matrix contains incomplete cell " & Value);
-         end if;
+         while Cursor <= Header'Last loop
+            if Header (Cursor) = '|' then
+               Index := Index + 1;
+               declare
+                  Next : Natural := 0;
+               begin
+                  for Scan in Cursor + 1 .. Header'Last loop
+                     if Header (Scan) = '|' then
+                        Next := Scan;
+                        exit;
+                     end if;
+                  end loop;
+
+                  exit when Next = 0;
+
+                  if Project_Tools.Text.Contains
+                       (Header (Cursor + 1 .. Next - 1), Title)
+                  then
+                     return Index;
+                  end if;
+
+                  Cursor := Next;
+               end;
+            else
+               Cursor := Cursor + 1;
+            end if;
+         end loop;
+
+         return 0;
+      end Column_Of;
+
+      procedure Reject_Cell (Value : String; Except_In : String := "") is
+         Text     : constant String :=
+           Ada.Strings.Unbounded.To_String
+             (Project_Tools.Text.Read_Text_File (Path));
+         Allowed  : Natural := 0;
+         Line_Start : Positive := Text'First;
+      begin
+         for Cursor in Text'Range loop
+            if Text (Cursor) = ASCII.LF or else Cursor = Text'Last then
+               declare
+                  Last : constant Natural :=
+                    (if Text (Cursor) = ASCII.LF then Cursor - 1 else Cursor);
+                  Line : constant String := Text (Line_Start .. Last);
+                  Column : Natural := 0;
+                  Start  : Natural := 0;
+               begin
+                  if Except_In /= "" and then Project_Tools.Text.Contains
+                       (Line, "| " & Except_In & " |")
+                  then
+                     Allowed := Column_Of (Line, Except_In);
+                  end if;
+
+                  --  Walk the row's cells so the column each one sits in is
+                  --  known, rather than only that the value appears somewhere.
+                  for Scan in Line'Range loop
+                     if Line (Scan) = '|' then
+                        if Start /= 0 then
+                           Column := Column + 1;
+
+                           if Project_Tools.Text.Contains
+                                (Line (Start .. Scan - 1), " " & Value & " ")
+                             and then Column /= Allowed
+                           then
+                              Fail
+                                (State,
+                                 Path,
+                                 "parity matrix contains incomplete cell "
+                                 & Value);
+                           end if;
+                        end if;
+
+                        Start := Scan;
+                     end if;
+                  end loop;
+               end;
+
+               Line_Start := Cursor + 1;
+            end if;
+         end loop;
       end Reject_Cell;
 
       procedure Require_Text (Item : String) is
@@ -941,7 +1026,7 @@ procedure Devcert_Tools is
       Require_Row ("fingerprint-authoritative removal");
       Require_Row ("JSON output");
       Require_Row ("localized human output");
-      Reject_Cell ("Partial");
+      Reject_Cell ("Partial", Except_In => "Host validation");
       Reject_Cell ("No");
 
       --  Suite coverage and a run on a real host are different claims, and the
