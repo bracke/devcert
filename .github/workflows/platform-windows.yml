@@ -118,6 +118,10 @@ jobs:
         env:
           DEVCERT_RUN_PLATFORM_TRUST_TESTS: "1"
         run: |
+          # No -e: this records what happened, including the failures, and
+          # GitHub's bash shell turns it on by default. A transcript that stops
+          # at the first non-zero exit is a transcript missing the evidence.
+          set +e
           set -u
           LOG=windows-trust-transcript.txt
           exec > >(tee "$LOG") 2>&1
@@ -131,7 +135,9 @@ jobs:
           echo
           echo "=== is this session elevated?"
           # S-1-16-12288 is the high integrity level: what an elevated token has.
-          if cmd //c "whoami /groups" | grep -q "S-1-16-12288"; then
+          # By path: MSYS ships a whoami of its own, and it is first on PATH.
+          WHOAMI='C:\Windows\System32\whoami.exe'
+          if cmd //c "$WHOAMI /groups" | grep -q "S-1-16-12288"; then
             echo "elevated: yes (a GitHub-hosted runner is)"
           else
             echo "elevated: no"
@@ -152,7 +158,8 @@ jobs:
           INNER="${INNER} --plain install --trust-store system"
           INNER="${INNER} > unelevated.txt 2>&1"
           INNER="${INNER} & echo exit=%ERRORLEVEL% >> unelevated.txt"
-          cmd //c "runas /trustlevel:0x20000 \"cmd /c ${INNER}\"" || true
+          cmd //c "runas /trustlevel:0x20000 \"cmd /c ${INNER}\""
+          RUNAS_STATUS=$?
           for attempt in $(seq 1 30); do
             if [ -s unelevated.txt ] && grep -q "exit=" unelevated.txt; then break; fi
             sleep 2
@@ -160,6 +167,8 @@ jobs:
           if [ -s unelevated.txt ]; then
             cat unelevated.txt
           else
+            echo "no output from the restricted-token run"
+            echo "runas exit was ${RUNAS_STATUS}; the token drop is what to doubt"
             echo "::warning::restricted-token run produced no output; denial unexercised"
           fi
 

@@ -35,6 +35,11 @@ Initial development release.
   been failing as though it needed privileges.
 * Removing a trust anchor that is not installed says so instead of reporting a
   removal that did not happen.
+* Trust-store commands capture their output into the host's temporary
+  directory instead of `/tmp`, spelled out. Windows has no such directory, so
+  the spawn could not create the file it was told to capture into and every
+  trust-store command there reported failure whatever the command itself did.
+  A failure now also carries the tool's exit status.
 * A trust store removal that succeeded says `removed` rather than `installed`.
 * A macOS or Windows trust store that refuses an unprivileged caller is
   reported as `permission-required` and exit 7, the way Linux already reported

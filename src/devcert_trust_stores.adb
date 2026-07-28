@@ -7,6 +7,7 @@ with GNAT.OS_Lib;
 
 with CryptoLib.Certificates;
 
+with Hostkit.Fs;
 with Hostkit.Host;
 
 package body Devcert_Trust_Stores is
@@ -330,13 +331,20 @@ package body Devcert_Trust_Stores is
    end Probe;
 
    procedure Run
-     (Program : String;
-      Args    : GNAT.OS_Lib.Argument_List;
-      Success : out Boolean)
+     (Program     : String;
+      Args        : GNAT.OS_Lib.Argument_List;
+      Success     : out Boolean;
+      Exit_Status : out Integer)
    is
       Return_Code : Integer := 1;
       Spawned     : Boolean := False;
-      Output_File : constant String := "/tmp/devcert-trust-command.out";
+      --  The host's own temporary directory. This was /tmp, spelled out, which
+      --  is a directory Windows does not have: the spawn could not create the
+      --  file it was told to capture into, so every trust-store command there
+      --  reported failure whatever the command itself did.
+      Output_File : constant String :=
+        Ada.Directories.Compose
+          (Hostkit.Fs.Temp_Directory, "devcert-trust-command.out");
    begin
       GNAT.OS_Lib.Spawn
         (Program,
@@ -349,6 +357,17 @@ package body Devcert_Trust_Stores is
          Ada.Directories.Delete_File (Output_File);
       end if;
       Success := Spawned and then Return_Code = 0;
+      Exit_Status := (if Spawned then Return_Code else -1);
+   end Run;
+
+   procedure Run
+     (Program : String;
+      Args    : GNAT.OS_Lib.Argument_List;
+      Success : out Boolean)
+   is
+      Ignored : Integer;
+   begin
+      Run (Program, Args, Success, Ignored);
    end Run;
 
    function Read_Text_File (Path : String) return String is
@@ -378,7 +397,10 @@ package body Devcert_Trust_Stores is
    is
       Return_Code : Integer := 1;
       Spawned     : Boolean := False;
-      Output_File : constant String := "/tmp/devcert-trust-capture.out";
+      --  A host temporary directory, for the reason given in Run.
+      Output_File : constant String :=
+        Ada.Directories.Compose
+          (Hostkit.Fs.Temp_Directory, "devcert-trust-capture.out");
    begin
       GNAT.OS_Lib.Spawn
         (Program,
@@ -1001,6 +1023,7 @@ package body Devcert_Trust_Stores is
    is
       Security : constant String := Locate ("security");
       Ran      : Boolean := False;
+      Status   : Integer := -1;
    begin
       Success := False;
       if Security = "" then
@@ -1020,7 +1043,8 @@ package body Devcert_Trust_Stores is
                 new String'("-k"),
                 new String'("/Library/Keychains/System.keychain"),
                 new String'(Certificate)],
-               Ran);
+               Ran,
+               Status);
          when Remove =>
             Run
               (Security,
@@ -1028,7 +1052,8 @@ package body Devcert_Trust_Stores is
                 new String'("-Z"),
                 new String'(Safe_Fingerprint (Fingerprint)),
                 new String'("/Library/Keychains/System.keychain")],
-               Ran);
+               Ran,
+               Status);
       end case;
       Success := Ran;
 
@@ -1049,7 +1074,8 @@ package body Devcert_Trust_Stores is
       else
          Message :=
            Ada.Strings.Unbounded.To_Unbounded_String
-             ("failed to update macOS trust store");
+             ("failed to update macOS trust store (security exit"
+              & Status'Image & ")");
       end if;
    end Apply_MacOS;
 
@@ -1062,6 +1088,9 @@ package body Devcert_Trust_Stores is
    is
       Certutil : constant String := Locate ("certutil");
       Ran      : Boolean := False;
+      --  What certutil made of it. The message used to say only that the store
+      --  was not updated, which is the least useful half of what was known.
+      Status   : Integer := -1;
    begin
       Success := False;
       if Certutil = "" then
@@ -1077,14 +1106,16 @@ package body Devcert_Trust_Stores is
                [new String'("-addstore"),
                 new String'("Root"),
                 new String'(Certificate)],
-               Ran);
+               Ran,
+               Status);
          when Remove =>
             Run
               (Certutil,
                [new String'("-delstore"),
                 new String'("Root"),
                 new String'(Safe_Fingerprint (Fingerprint))],
-               Ran);
+               Ran,
+               Status);
       end case;
       Success := Ran;
 
@@ -1101,7 +1132,8 @@ package body Devcert_Trust_Stores is
       else
          Message :=
            Ada.Strings.Unbounded.To_Unbounded_String
-             ("failed to update Windows trust store");
+             ("failed to update Windows trust store (certutil exit"
+              & Status'Image & ")");
       end if;
    end Apply_Windows;
 
