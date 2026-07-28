@@ -33,7 +33,7 @@ What each column asserts:
 | Linux system trust | Implemented | Tested | Linux | Yes |
 | NSS trust | Implemented | Tested | Linux | Yes |
 | Firefox trust | Implemented | Tested | Linux | Yes |
-| Java trust | Implemented | Tested | Partial | Yes |
+| Java trust | Implemented | Tested | Container | Yes |
 | macOS trust | Implemented | Tested | macOS | Yes |
 | Windows trust | Implemented | Tested | Partial | Yes |
 | fingerprint-authoritative removal | Implemented | Tested | Linux | Yes |

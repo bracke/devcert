@@ -17,9 +17,6 @@ Every store below has been exercised against a real one. What has not, as of
 * **The Windows denial path.** A hosted runner is elevated and the restricted
   token will not start there, so `permission-required` and exit 7 on Windows
   have never been produced. The store operations have.
-* **A JDK's own `cacerts`.** The Java run used `DEVCERT_JAVA_KEYSTORE`, which is
-  the path around it. Writing to the installation's own keystore is what a user
-  gets by default, and it needs a writable JDK.
 * **Firefox on macOS and Windows.** NSS profile discovery was validated on
   Linux; the profile layout differs on the other two and only the Linux one has
   been walked.
@@ -265,6 +262,19 @@ that preamble was swept into the base64 and the comparison was against nothing.
 Fixed in cryptolib `c393a83`; `openssl x509 -text` output had the same shape and
 the same fate.
 
-Which leaves the ordinary case unexercised here: the JDK's own `cacerts`, which
-`DEVCERT_JAVA_KEYSTORE` bypasses. It needs a writable JDK installation, and the
-container's is root-owned by design.
+The JDK's own `cacerts` -- the default, which `DEVCERT_JAVA_KEYSTORE` goes
+around -- was then run the same way, with the variable unset. A container runs
+as root, so the installation's keystore is writable:
+
+```text
+anchors before:          144
+install                  java=installed: devcert-2934454b...
+anchors while installed: 145
+keytool SHA256:          29:34:45:4B:...:AD:38
+devcert issued:          29:34:45:4B:...:AD:38
+uninstall                java=removed
+anchors after:           144
+```
+
+The count returning to 144 is the part worth keeping: devcert added one anchor
+to a store of 144 and took that one back out.
