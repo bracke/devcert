@@ -10,8 +10,11 @@ name: platform-windows
 #
 # What it cannot show: a GitHub-hosted Windows runner is already elevated, so
 # the ordinary denial -- an unprivileged caller refused by the machine store --
-# is reached here through a restricted token rather than an ordinary user
-# account. Recorded as such.
+# would have to be reached through a restricted token rather than an ordinary
+# user account. The attempt is kept because it costs a second and would start
+# working on an image with the Secondary Logon service running, but it has
+# never yet produced a result: runas exits 1 and prints nothing. The step says
+# so rather than passing quietly, and docs/platform_evidence.md records the gap.
 
 on:
   workflow_dispatch:

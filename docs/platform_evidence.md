@@ -169,8 +169,11 @@ asks by the hash the store keeps and reads the store back afterwards, because
 the exit status has been wrong about this once already.
 
 Outstanding: the unprivileged case. A hosted runner is already elevated, so the
-denial has to be reached through a restricted token (`runas /trustlevel:0x20000`),
-which would not start on this image. What is unexercised is therefore the
+denial has to be reached through a restricted token (`runas /trustlevel:0x20000`).
+That does not work on this image: the Secondary Logon service is `STOPPED`, and
+starting it does not help -- `runas` exits 1 and prints nothing, on four
+separate runners. What would close it is an ordinary Windows user account, the
+way the macOS case was closed on a real machine. What is unexercised is therefore the
 reporting -- `permission-required` and exit 7 -- and not the store operations
 themselves. On macOS the equivalent path was exercised on a real machine and the
 two adapters answer the same way.
