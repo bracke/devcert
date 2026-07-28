@@ -35,6 +35,11 @@ Initial development release.
   been failing as though it needed privileges.
 * Removing a trust anchor that is not installed says so instead of reporting a
   removal that did not happen.
+* A Java trust anchor devcert installed is recognised as its own. `keytool
+  -list -rfc` names the alias and the entry type before the armour, and the PEM
+  decoder began one line into the text, so devcert compared its CA against that
+  preamble: a successful install was reported as a failure, and `uninstall` then
+  refused to remove the anchor it had put there.
 * Removing the CA from the Windows trust store removes it. `certutil` matches
   the SHA-1 hash the store indexes by, and handed devcert's SHA-256 identity it
   exited zero having deleted nothing, so `uninstall` reported a removal that had

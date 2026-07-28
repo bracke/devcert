@@ -97,6 +97,17 @@ DEVCERT_JAVA_KEYSTORE=/tmp/devcert-cacerts \
 
 Verify with `keytool -list -rfc`.
 
+A host without a JDK, and unwilling to acquire one, can run the whole thing in a
+container: the adapter needs a real `keytool` and a real keystore, and an image
+has both.
+
+```text
+podman run --rm -v "$PWD:/devcert:ro" -v /tmp/work:/work \
+  docker.io/library/eclipse-temurin:21-jdk \
+  bash -c 'DEVCERT_JAVA_KEYSTORE=/work/cacerts DEVCERT_CAROOT=/work/ca \
+    /devcert/bin/devcert --plain install --trust-store java'
+```
+
 ## macOS
 
 Run from a disposable macOS user or VM:

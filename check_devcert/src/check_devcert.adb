@@ -112,9 +112,13 @@ begin
    Require_Text
      ("docs/security.md", "never installed into",
       "the security model must state that the CA key stays out of trust stores");
+   --  A section, not a phrase. "Not validated" used to appear inside whichever
+   --  store had not been run, so it vanished the moment the last one was --
+   --  exactly when a reader most needs to be told what is still uncovered, and
+   --  what is covered only in part.
    Require_Text
-     ("docs/platform_evidence.md", "Not validated",
-      "the evidence file must say which platforms have not been validated");
+     ("docs/platform_evidence.md", "## Not Validated",
+      "the evidence file must carry a standing list of what is not covered");
    Require_Text
      ("docs/cryptolib_contract.md", "must not contain duplicate",
       "the cryptolib contract must state the boundary devcert keeps");

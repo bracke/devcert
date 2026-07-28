@@ -9,6 +9,23 @@ A platform with no entry below has not been validated. That is the honest
 reading of an absent row, and it is the reason this file lists what has *not*
 been run as plainly as what has.
 
+## Not Validated
+
+Every store below has been exercised against a real one. What has not, as of
+2026-07-28:
+
+* **The Windows denial path.** A hosted runner is elevated and the restricted
+  token will not start there, so `permission-required` and exit 7 on Windows
+  have never been produced. The store operations have.
+* **A JDK's own `cacerts`.** The Java run used `DEVCERT_JAVA_KEYSTORE`, which is
+  the path around it. Writing to the installation's own keystore is what a user
+  gets by default, and it needs a writable JDK.
+* **Firefox on macOS and Windows.** NSS profile discovery was validated on
+  Linux; the profile layout differs on the other two and only the Linux one has
+  been walked.
+* **`update-ca-trust` and `trust anchor` under SELinux enforcing.** The Fedora
+  container ran permissive.
+
 ## Linux System Store
 
 | | |
@@ -214,5 +231,40 @@ not the experience of visiting a site.
 
 ## Java Keystores
 
-Not validated. The adapter has been smoke-tested against a temporary keystore
-through `DEVCERT_JAVA_KEYSTORE`, which is not a run against a real store.
+| | |
+| --- | --- |
+| Date | 2026-07-28 |
+| Environment | eclipse-temurin:21-jdk container (Ubuntu 26.04, OpenJDK 21.0.11) |
+| devcert commit | `b84462a` |
+| cryptolib commit | `c393a83` |
+| Result | Passed: imported, matched by fingerprint, removed |
+
+A container rather than a machine: the host has no JDK and wants none, and the
+adapter only needs a real `keytool` and a real keystore, both of which an image
+has. devcert's own binary runs inside it, against
+`DEVCERT_JAVA_KEYSTORE=/work/javaval/cacerts`.
+
+```text
+install    java=installed: installed Java trust anchor devcert-d80cf9c6...
+keytool    Alias name: devcert-d80cf9c6...
+           Owner: CN=devcert-local-development-ca
+           SHA256: D8:0C:F9:C6:...:D2:03:AE
+uninstall  java=removed: removed Java trust anchor devcert-d80cf9c6...
+           absent after uninstall
+```
+
+The SHA-256 `keytool` reports is the fingerprint devcert issued.
+
+The first run failed, and not in the keystore. `install` reported failure while
+the anchor sat in the keystore with the right fingerprint, and `uninstall` then
+refused to remove it -- "Java trust anchor fingerprint mismatch". devcert asks
+`keytool -list -rfc` for the anchor and compares it with its own CA, and
+`keytool` names the alias, the creation date and the entry type before the
+armour. cryptolib's decoder began one line into the text, so every letter of
+that preamble was swept into the base64 and the comparison was against nothing.
+Fixed in cryptolib `c393a83`; `openssl x509 -text` output had the same shape and
+the same fate.
+
+Which leaves the ordinary case unexercised here: the JDK's own `cacerts`, which
+`DEVCERT_JAVA_KEYSTORE` bypasses. It needs a writable JDK installation, and the
+container's is root-owned by design.
