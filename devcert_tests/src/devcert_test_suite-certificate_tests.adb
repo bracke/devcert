@@ -349,6 +349,118 @@ package body Devcert_Test_Suite.Certificate_Tests is
       return AUnit.Format ("custom certificate PKCS12 workflow");
    end Name;
    overriding function Name
+     (Item : Profile_Extensions_Test) return AUnit.Message_String
+   is
+      pragma Unreferenced (Item);
+   begin
+      return AUnit.Format ("issued profiles carry their extensions");
+   end Name;
+
+   --  What a profile means is what the certificate carries: a client
+   --  certificate offered to a TLS server is refused unless it says
+   --  clientAuth, and a name is only a name to a browser if it is in the SAN.
+   --  The request policy was tested; what came out of it was not.
+   overriding procedure Run_Test (Item : in out Profile_Extensions_Test) is
+      pragma Unreferenced (Item);
+      CA_Cert : Unbounded_String;
+      CA_Key  : Unbounded_String;
+      Leaf    : Unbounded_String;
+      Key     : Unbounded_String;
+      Path    : constant String := Paths.Scratch ("devcert-aunit-profile.pem");
+
+      function Text_Of (Certificate : Unbounded_String) return String is
+      begin
+         Devcert_Secure_Files.Atomic_Write (Path, To_String (Certificate));
+         return Openssl_Output
+           ([new String'("x509"),
+             new String'("-in"),
+             new String'(Path),
+             new String'("-noout"),
+             new String'("-text")]);
+      end Text_Of;
+
+      function Issue
+        (Mode : Devcert.Certificate_Requests.Certificate_Mode;
+         Identity : String) return Boolean
+      is
+         Request : Devcert.Certificate_Requests.Request :=
+           Devcert.Certificate_Requests.Empty (Mode);
+         Status  : constant Devcert.Certificate_Requests.Request_Status :=
+           Devcert.Certificate_Requests.Add_Identity (Request, Identity);
+      begin
+         return Status = Devcert.Certificate_Requests.Valid
+           and then Devcert_Crypto.Issue_Certificate (Request, Leaf, Key)
+                    = Devcert_Crypto.Ok;
+      end Issue;
+   begin
+      Reset_Temp_Home ("profile-extensions");
+      Assert
+        (Devcert_Crypto.Create_CA (CA_Cert, CA_Key) = Devcert_Crypto.Ok,
+         "CA creation succeeds for the profile test");
+      Devcert_Secure_Files.Atomic_Write
+        (Devcert_State.CA_Certificate_Path, To_String (CA_Cert));
+      Devcert_Secure_Files.Atomic_Write
+        (Devcert_State.CA_Private_Key_Path, To_String (CA_Key), Secret => True);
+
+      if not Has_Openssl then
+         Ada.Text_IO.Put_Line
+           ("   (skipped: no openssl on this host to read the extensions)");
+         return;
+      end if;
+
+      Assert
+        (Issue (Devcert.Certificate_Requests.Server, "localhost"),
+         "a server certificate is issued");
+      declare
+         Text : constant String := Text_Of (Leaf);
+      begin
+         Assert
+           (Index (To_Unbounded_String (Text), "TLS Web Server Authentication") /= 0,
+            "a server certificate says serverAuth");
+         Assert
+           (Index (To_Unbounded_String (Text), "DNS:localhost") /= 0,
+            "and carries the name it was asked for as a SAN");
+      end;
+
+      Assert
+        (Issue (Devcert.Certificate_Requests.Server, "127.0.0.1"),
+         "an address certificate is issued");
+      Assert
+        (Index (To_Unbounded_String (Text_Of (Leaf)), "IP Address:127.0.0.1") /= 0,
+         "an address is carried as an IP SAN, not as a name");
+
+      Assert
+        (Issue (Devcert.Certificate_Requests.Client, "dev-client"),
+         "a client certificate is issued");
+      declare
+         Text : constant String := Text_Of (Leaf);
+      begin
+         Assert
+           (Index (To_Unbounded_String (Text), "TLS Web Client Authentication") /= 0,
+            "a client certificate says clientAuth");
+         Assert
+           (Index (To_Unbounded_String (Text), "TLS Web Server Authentication") = 0,
+            "and does not also claim to be a server");
+      end;
+
+      Assert
+        (Issue (Devcert.Certificate_Requests.Email, "someone@example.test"),
+         "an email certificate is issued");
+      declare
+         Text : constant String := Text_Of (Leaf);
+      begin
+         Assert
+           (Index (To_Unbounded_String (Text), "E-mail Protection") /= 0,
+            "an email certificate says emailProtection");
+         Assert
+           (Index (To_Unbounded_String (Text), "someone@example.test") /= 0,
+            "and carries the address");
+      end;
+
+      Ada.Directories.Delete_File (Path);
+   end Run_Test;
+
+   overriding function Name
      (Item : Chain_Verification_Test) return AUnit.Message_String
    is
       pragma Unreferenced (Item);

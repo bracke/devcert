@@ -33,8 +33,11 @@ permissions, and writer locking.
 Package: `Devcert_Crypto`, through `openssl`.
 
 Coverage: an issued leaf verifies against the CA that signed it and not against
-one that did not, and the fingerprint devcert reports is the one `openssl`
-reports for the same certificate. Skipped aloud where the host has no `openssl`.
+one that did not; the fingerprint devcert reports is the one `openssl` reports
+for the same certificate; and each profile carries what it claims -- serverAuth
+with the name as a DNS SAN, an address as an IP SAN, clientAuth without also
+claiming serverAuth, emailProtection with the address. Skipped aloud where the
+host has no `openssl`.
 
 ## Certificate Policy
 
