@@ -35,6 +35,9 @@ the stable partial-success exit code.
 
 Stable trust-store states include `unsupported`, `available`, `installed`,
 `not-installed`, `tool-missing`, `permission-required`, `partial`, and `error`.
+A removal that succeeded is reported as `removed`: the same success, said the
+way round it happened, because `uninstall` answering `installed` reads as the
+opposite of what it did.
 
 ## Linux
 

@@ -73,52 +73,56 @@ question.
 
 ## macOS System Store
 
-Partially validated: the adapter works, the tooling around it did not.
-
 | | |
 | --- | --- |
 | Date | 2026-07-28 |
 | Operating system | macOS 14.8.7 (23J520), x86_64 |
-| devcert commit | `f0f587f` |
+| devcert commit | `e1b31a7` |
 | cryptolib commit | `1025377` |
+| Result | Passed: installed, validated, removed, and a denial reported as a denial |
 
 The keychain adapter could not be reached before `5bfdb5f`: the host was
 detected by comparing `OSTYPE` to `darwin`, and `OSTYPE` is a shell variable a
-spawned process does not inherit, so every macOS was treated as a Linux. This
-was its first execution on a Mac.
+spawned process does not inherit, so every macOS was treated as a Linux. What
+follows is the first time it has run on a Mac.
 
-Unprivileged, every operation failed:
-
-```text
-macos-system trust install    system=error: failed to update macOS trust store
-macos-system trust uninstall  system=error: failed to update macOS trust store
-keychain after install        no devcert certificate present
-```
-
-Run by hand, `security` gave the reason devcert did not:
+Unprivileged, an install is refused, and says so:
 
 ```text
-security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain rootCA.pem
-SecCertificateAddToKeychain: Write permissions error.      exit 1
-sudo security add-trusted-cert ...                          exit 0
+system=permission-required: macOS trust store update requires permission
+  for /Library/Keychains/System.keychain
+exit 7
 ```
 
-So three things hold. The keychain accepts the P-384 CA -- the algorithm that
-NSS refused was not a problem here. `security delete-certificate -Z` takes the
-SHA-256 hash devcert computes: the keychain reported
-`105ECBF970944EF16442D4C525ACC4E0D77AF7894EE9AD33A31443D77542B349` for a CA
-whose devcert fingerprint was `10:5E:CB:F9:...:B3:49`, and `devcert uninstall`
-under `sudo` removed it. And the failure was privileges throughout.
+That is the fix this run tested. On the first pass, at `f0f587f`, the same
+command answered `system=error: failed to update macOS trust store` and exit 6:
+the adapter was right and the report was wrong, and the one thing it did not say
+was that the system keychain belongs to root. Run by hand, `security` gave the
+reason -- `SecCertificateAddToKeychain: Write permissions error.` -- and the
+same command under `sudo` returned 0.
 
-What was wrong was the report: a denial came back as `error` and exit 6, where
-Linux answers the same situation with `permission-required` and exit 7. Fixed
-by asking `Hostkit.Host.Is_Elevated` once an attempt has failed -- the keychain
-decides whether it will have us, and the privilege only explains a refusal
-afterwards.
+With privileges, the whole check passes:
 
-Outstanding: a run of `sudo devcert_tools platform-check macos-system` end to
-end on the fixed build, recorded here. Everything it exercises has now been
-executed by hand, but not in one pass through the tooling.
+```text
+sudo DEVCERT_RUN_PLATFORM_TRUST_TESTS=1 devcert_tools platform-check macos-system
+==> macos-system trust install    system=installed: updated macOS trust store
+==> macos-system trust doctor     doctor: ca complete
+==> macos-system trust uninstall  system=removed: updated macOS trust store
+platform-check macos-system passed
+```
+
+A separately recorded root confirms the certificate that reached the keychain is
+the one devcert issued: devcert reported
+`1F:86:10:FB:53:78:BB:2B:84:2D:F6:31:AF:5C:67:21:7F:A6:B4:F9:9F:E1:10:CF:10:60:0B:0F:37:0D:5C:23`,
+and `security find-certificate -Z` reported
+`1F8610FB5378BB2B842DF631AF5C67217FA6B4F99FE110CF10600B0F370D5C23` for the same
+CA. After `uninstall` the keychain holds no certificate under that name.
+
+Two questions this settles beyond the run itself. The keychain accepts the P-384
+CA, so the algorithm NSS refused is no trouble here. And
+`security delete-certificate -Z` takes the SHA-256 hash devcert computes, not
+the SHA-1 its manual page documents, so fingerprint-authoritative removal works
+as written.
 
 ## Windows System Store
 

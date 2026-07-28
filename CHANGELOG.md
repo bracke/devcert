@@ -35,6 +35,7 @@ Initial development release.
   been failing as though it needed privileges.
 * Removing a trust anchor that is not installed says so instead of reporting a
   removal that did not happen.
+* A trust store removal that succeeded says `removed` rather than `installed`.
 * A macOS or Windows trust store that refuses an unprivileged caller is
   reported as `permission-required` and exit 7, the way Linux already reported
   it, rather than as a broken store. The system keychain belongs to root and the

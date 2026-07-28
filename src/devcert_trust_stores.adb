@@ -1190,11 +1190,17 @@ package body Devcert_Trust_Stores is
             if I > 1 then
                Ada.Strings.Unbounded.Append (Combined, "; ");
             end if;
+            --  A removal that worked is reported as removed, not installed.
+            --  The state is one success either way, but "uninstall" answering
+            --  "system=installed" reads as the opposite of what happened, and
+            --  this is a tool people run to be sure a root is gone.
             Ada.Strings.Unbounded.Append
               (Combined,
                Name (Kind)
                & "="
-               & State_Image (Item_State)
+               & (if Operation = Remove and then Item_State = Installed
+                  then "removed"
+                  else State_Image (Item_State))
                & ": "
                & Ada.Strings.Unbounded.To_String (Item_Message));
 

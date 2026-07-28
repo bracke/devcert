@@ -34,7 +34,7 @@ What each column asserts:
 | NSS trust | Implemented | Tested | Linux | Yes |
 | Firefox trust | Implemented | Tested | Linux | Yes |
 | Java trust | Implemented | Tested | Pending | Yes |
-| macOS trust | Implemented | Tested | Partial | Yes |
+| macOS trust | Implemented | Tested | macOS | Yes |
 | Windows trust | Implemented | Tested | Pending | Yes |
 | fingerprint-authoritative removal | Implemented | Tested | Linux | Yes |
 | JSON output | Implemented | Tested | n/a | Yes |
