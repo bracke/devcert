@@ -2,6 +2,10 @@ with AUnit.Assertions;
 with Ada.Directories;
 with Ada.Environment_Variables;
 with Ada.Strings;
+with Ada.Text_IO;
+with GNAT.OS_Lib;
+with Hostkit.Host;
+with Devcert_Crypto;
 with Ada.Strings.Unbounded;
 with Devcert_Test_Suite.Paths;
 with Devcert_Secure_Files;
@@ -10,6 +14,7 @@ with Devcert_Trust_Stores;
 package body Devcert_Test_Suite.Trust_Tests is
    use AUnit.Assertions;
    use Ada.Strings.Unbounded;
+   use type Devcert_Crypto.Operation_Status;
    use type Devcert_Trust_Stores.Trust_State;
    use type Devcert_Trust_Stores.Trust_Store_Kind;
    use type Devcert_Trust_Stores.Trust_Target;
@@ -173,6 +178,18 @@ package body Devcert_Test_Suite.Trust_Tests is
          "trust aliases are derived only from normalized fingerprints");
    end Run_Test;
 
+   function Has_Keytool return Boolean is
+      use type GNAT.OS_Lib.String_Access;
+      Found : GNAT.OS_Lib.String_Access :=
+        GNAT.OS_Lib.Locate_Exec_On_Path ("keytool");
+   begin
+      if Found = null then
+         return False;
+      end if;
+      GNAT.OS_Lib.Free (Found);
+      return True;
+   end Has_Keytool;
+
    overriding function Name (Item : Trust_Plan_Test) return AUnit.Message_String is
       pragma Unreferenced (Item);
    begin
@@ -236,6 +253,74 @@ package body Devcert_Test_Suite.Trust_Tests is
    end Run_Test;
 
    overriding function Name
+     (Item : Trust_Denial_Test) return AUnit.Message_String
+   is
+      pragma Unreferenced (Item);
+   begin
+      return AUnit.Format ("a store that will not have us says so");
+   end Name;
+
+   --  A store that refuses an unprivileged caller is not a broken store, and
+   --  the difference is the whole of what the caller can do about it. Every
+   --  adapter has had this wrong at least once: macOS and Windows reported a
+   --  denial as an error until a real store was tried, and Java did until this
+   --  host turned out to have a keytool and a root-owned cacerts.
+   --
+   --  The keystore here is one nobody can create -- an ordinary directory this
+   --  process may not write -- so the real JDK store is never touched.
+   overriding procedure Run_Test (Item : in out Trust_Denial_Test) is
+      pragma Unreferenced (Item);
+
+      Unwritable : constant String := "/usr/lib/devcert-aunit-keystore.jks";
+      Cert_Path  : constant String := Paths.Scratch ("devcert-aunit-denial.pem");
+      Outcome    : Devcert_Trust_Stores.Trust_State := Devcert_Trust_Stores.Error;
+      Message    : Unbounded_String;
+      Cert       : Unbounded_String;
+      Key        : Unbounded_String;
+   begin
+      if Hostkit.Host.Is_Elevated then
+         Ada.Text_IO.Put_Line
+           ("   (skipped: elevated, so nothing here would be refused)");
+         return;
+      end if;
+
+      if not Has_Keytool then
+         Ada.Text_IO.Put_Line ("   (skipped: no keytool on this host)");
+         return;
+      end if;
+
+      if not Ada.Directories.Exists ("/usr/lib") then
+         Ada.Text_IO.Put_Line
+           ("   (skipped: no directory here that refuses us)");
+         return;
+      end if;
+
+      Assert
+        (Devcert_Crypto.Create_CA (Cert, Key) = Devcert_Crypto.Ok,
+         "a CA to offer the store");
+      Devcert_Secure_Files.Atomic_Write (Cert_Path, To_String (Cert));
+
+      Ada.Environment_Variables.Set ("DEVCERT_JAVA_KEYSTORE", Unwritable);
+      Devcert_Trust_Stores.Apply
+        (Devcert_Trust_Stores.Java,
+         Devcert_Trust_Stores.Install,
+         Cert_Path,
+         "aa:bb:cc",
+         Outcome,
+         Message);
+      Ada.Environment_Variables.Clear ("DEVCERT_JAVA_KEYSTORE");
+
+      Assert
+        (Outcome = Devcert_Trust_Stores.Permission_Required,
+         "a keystore we may not write is a denial, not a broken store");
+      Assert
+        (not Ada.Directories.Exists (Unwritable),
+         "and nothing was created where we may not write");
+
+      Ada.Directories.Delete_File (Cert_Path);
+   end Run_Test;
+
+   overriding function Name
      (Item : Trust_Linux_Mutation_Test) return AUnit.Message_String
    is
       pragma Unreferenced (Item);
@@ -257,7 +342,8 @@ package body Devcert_Test_Suite.Trust_Tests is
         "-----BEGIN CERTIFICATE-----" & ASCII.LF
         & "MIIBdifferenttrustedroot" & ASCII.LF
         & "-----END CERTIFICATE-----" & ASCII.LF;
-      Success : Boolean := False;
+      Outcome : Devcert_Trust_Stores.Trust_State :=
+        Devcert_Trust_Stores.Error;
       Message : Unbounded_String;
    begin
       if Ada.Directories.Exists (Trust_Dir) then
@@ -280,9 +366,11 @@ package body Devcert_Test_Suite.Trust_Tests is
          Devcert_Trust_Stores.Install,
          Cert_Path,
          "aa:bb:cc",
-         Success,
+         Outcome,
          Message);
-      Assert (Success, "configured Linux trust anchor installs");
+      Assert
+        (Outcome = Devcert_Trust_Stores.Installed,
+         "configured Linux trust anchor installs");
       Assert (Ada.Directories.Exists (Target), "trust anchor file is staged");
 
       Devcert_Trust_Stores.Apply
@@ -290,9 +378,11 @@ package body Devcert_Test_Suite.Trust_Tests is
          Devcert_Trust_Stores.Remove,
          Cert_Path,
          "aa:bb:cc",
-         Success,
+         Outcome,
          Message);
-      Assert (Success, "matching configured Linux trust anchor removes");
+      Assert
+        (Outcome = Devcert_Trust_Stores.Installed,
+         "matching configured Linux trust anchor removes");
       Assert
         (not Ada.Directories.Exists (Target),
          "matching trust anchor file is deleted");
@@ -304,9 +394,13 @@ package body Devcert_Test_Suite.Trust_Tests is
          Devcert_Trust_Stores.Remove,
          Cert_Path,
          "aa:bb:cc",
-         Success,
+         Outcome,
          Message);
-      Assert (not Success, "mismatched Linux trust anchor refuses removal");
+      --  And says why in its own terms: a refusal here is the store being
+      --  wrong about what it holds, not a denial and not a missing tool.
+      Assert
+        (Outcome = Devcert_Trust_Stores.Error,
+         "mismatched Linux trust anchor refuses removal");
       Assert
         (Ada.Directories.Exists (Target),
          "mismatched trust anchor file is preserved");

@@ -57,12 +57,15 @@ package Devcert_Trust_Stores is
       Certificate : String;
       Fingerprint : String) return String;
 
+   --  Apply the operation to one store, and say what became of it. The state
+   --  is the store's own answer, not an inference from the message: a caller
+   --  deciding between "denied" and "broken" must not depend on the wording.
    procedure Apply
      (Target      : Trust_Target;
       Operation   : Action;
       Certificate : String;
       Fingerprint : String;
-      Success     : out Boolean;
+      State       : out Trust_State;
       Message     : out Unbounded_String);
 
    procedure Apply

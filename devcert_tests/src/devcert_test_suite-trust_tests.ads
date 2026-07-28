@@ -30,6 +30,12 @@ package Devcert_Test_Suite.Trust_Tests is
      (Item : Trust_Aggregate_Test) return AUnit.Message_String;
    overriding procedure Run_Test (Item : in out Trust_Aggregate_Test);
 
+   type Trust_Denial_Test is
+     new AUnit.Simple_Test_Cases.Test_Case with null record;
+   overriding function Name
+     (Item : Trust_Denial_Test) return AUnit.Message_String;
+   overriding procedure Run_Test (Item : in out Trust_Denial_Test);
+
    type Trust_Linux_Mutation_Test is
      new AUnit.Simple_Test_Cases.Test_Case with null record;
    overriding function Name

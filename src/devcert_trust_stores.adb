@@ -1,3 +1,4 @@
+with Ada.Streams.Stream_IO;
 with Ada.Characters.Handling;
 with Ada.Environment_Variables;
 with Ada.Directories;
@@ -506,18 +507,21 @@ package body Devcert_Trust_Stores is
      (Operation   : Action;
       Certificate : String;
       Fingerprint : String;
-      Success     : out Boolean;
+      State       : out Trust_State;
       Message     : out Unbounded_String)
    is
       Backend : constant Linux_System_Backend := Detect_Linux_Backend;
       Target : constant String :=
         Linux_Target (Backend, Fingerprint);
       Ran : Boolean := False;
+      Success : Boolean := False;
    begin
       Success := False;
+      State := Error;
       Message := Ada.Strings.Unbounded.Null_Unbounded_String;
 
       if Backend = No_Backend then
+         State := Tool_Missing;
          Message :=
            Ada.Strings.Unbounded.To_Unbounded_String
              ("linux trust backend is not installed");
@@ -539,6 +543,7 @@ package body Devcert_Trust_Stores is
                Refresh_Linux (Backend, Ran);
             end if;
             Success := Ran;
+            State := (if Success then Installed else Error);
             if Success then
                Message :=
                  Ada.Strings.Unbounded.To_Unbounded_String
@@ -563,6 +568,7 @@ package body Devcert_Trust_Stores is
                Refresh_Linux (Backend, Ran);
             elsif Ada.Directories.Exists (Target) then
                Ran := False;
+               State := Error;
                Message :=
                  Ada.Strings.Unbounded.To_Unbounded_String
                    ("linux trust anchor fingerprint mismatch; refusing removal");
@@ -573,12 +579,14 @@ package body Devcert_Trust_Stores is
                --  and it read as removal from a store that had refused the
                --  install moments earlier.
                Success := True;
+               State := Installed;
                Message :=
                  Ada.Strings.Unbounded.To_Unbounded_String
                    ("no linux trust anchor for " & Fingerprint);
                return;
             end if;
             Success := Ran;
+            State := (if Success then Installed else Error);
             if Success then
                Message :=
                  Ada.Strings.Unbounded.To_Unbounded_String
@@ -591,7 +599,10 @@ package body Devcert_Trust_Stores is
       end case;
    exception
       when others =>
+         --  The copy or the refresh raised. On this backend that is what a
+         --  store owned by root looks like from an unprivileged process.
          Success := False;
+         State := Permission_Required;
          Message :=
            Ada.Strings.Unbounded.To_Unbounded_String
              ("linux trust store update requires permission for " & Target);
@@ -638,11 +649,86 @@ package body Devcert_Trust_Stores is
            Read_Text_File (Certificate));
    end Java_Contains_Certificate;
 
+   --  The keystore keytool would write, when it was not told one: the JDK's
+   --  own. Taken from JAVA_HOME, or from wherever keytool itself lives, since
+   --  a JDK keeps them in one shape -- bin/keytool beside lib/security/cacerts.
+   function Default_Java_Keystore (Keytool : String) return String is
+   begin
+      if Ada.Environment_Variables.Exists ("JAVA_HOME") then
+         return Ada.Environment_Variables.Value ("JAVA_HOME")
+           & "/lib/security/cacerts";
+      end if;
+
+      if Keytool = "" then
+         return "";
+      end if;
+
+      declare
+         --  Through the symlinks: a distribution puts keytool on PATH as a link
+         --  into its alternatives system, and the directory that link sits in
+         --  is not the JDK. /usr/bin/keytool would otherwise give
+         --  /usr/lib/security/cacerts, which is nobody's keystore.
+         Real : constant String :=
+           GNAT.OS_Lib.Normalize_Pathname (Keytool, Resolve_Links => True);
+         Bin  : constant String := Ada.Directories.Containing_Directory (Real);
+         Home : constant String := Ada.Directories.Containing_Directory (Bin);
+      begin
+         return Home & "/lib/security/cacerts";
+      end;
+   exception
+      when others =>
+         return "";
+   end Default_Java_Keystore;
+
+   --  Can this process write that keystore? Asked by opening it, because the
+   --  alternative is inferring it from ownership and mode, and a store may be
+   --  unwritable for reasons neither of those shows.
+   --
+   --  A keystore that is not there yet is the ordinary case for a keystore of
+   --  one's own -- keytool creates it -- so the question becomes whether its
+   --  directory will have us. And a path we could not work out at all answers
+   --  True: the caller turns False into "you need permission", which is a claim,
+   --  and a claim is not something to make out of not knowing.
+   function Keystore_Is_Writable (Path : String) return Boolean is
+      File : Ada.Streams.Stream_IO.File_Type;
+   begin
+      if Path = "" then
+         return True;
+      end if;
+
+      if Ada.Directories.Exists (Path) then
+         Ada.Streams.Stream_IO.Open
+           (File, Ada.Streams.Stream_IO.Append_File, Path);
+         Ada.Streams.Stream_IO.Close (File);
+         return True;
+      end if;
+
+      declare
+         Directory : constant String :=
+           Ada.Directories.Containing_Directory (Path);
+         Probe : constant String :=
+           Ada.Directories.Compose (Directory, "devcert-keystore-probe");
+      begin
+         if not Ada.Directories.Exists (Directory) then
+            return True;
+         end if;
+
+         Ada.Streams.Stream_IO.Create
+           (File, Ada.Streams.Stream_IO.Out_File, Probe);
+         Ada.Streams.Stream_IO.Close (File);
+         Ada.Directories.Delete_File (Probe);
+         return True;
+      end;
+   exception
+      when others =>
+         return False;
+   end Keystore_Is_Writable;
+
    procedure Apply_Java
      (Operation   : Action;
       Certificate : String;
       Fingerprint : String;
-      Success     : out Boolean;
+      State       : out Trust_State;
       Message     : out Unbounded_String)
    is
       Keytool : constant String := Locate ("keytool");
@@ -652,9 +738,31 @@ package body Devcert_Trust_Stores is
          then Ada.Environment_Variables.Value ("DEVCERT_JAVA_KEYSTORE")
          else "");
       Ran     : Boolean := False;
+      Success : Boolean := False;
+
+      --  Whichever keystore this operation is about, named once.
+      function Target_Keystore return String is
+        (if Keystore = "" then Default_Java_Keystore (Keytool) else Keystore);
+
+      --  A store that will not have us is not a broken store, and only one of
+      --  those is something the caller can do anything about.
+      function Failed_State return Trust_State is
+        (if Keystore_Is_Writable (Target_Keystore)
+         then Error
+         else Permission_Required);
+
+      function Failure_Message (Verb : String) return Unbounded_String is
+        (if Failed_State = Permission_Required
+         then Ada.Strings.Unbounded.To_Unbounded_String
+                ("Java trust store update requires permission for "
+                 & Target_Keystore)
+         else Ada.Strings.Unbounded.To_Unbounded_String
+                (Verb & " Java trust anchor " & Alias));
    begin
       Success := False;
+      State := Error;
       if Keytool = "" then
+         State := Tool_Missing;
          Message :=
            Ada.Strings.Unbounded.To_Unbounded_String ("keytool is not installed");
          return;
@@ -700,14 +808,17 @@ package body Devcert_Trust_Stores is
                Success := False;
                Ran := False;
             end if;
+            State := (if Success then Installed else Failed_State);
             Message :=
-              Ada.Strings.Unbounded.To_Unbounded_String
-                ((if Ran then "installed" else "failed to install")
-                 & " Java trust anchor " & Alias);
+              (if Success
+               then Ada.Strings.Unbounded.To_Unbounded_String
+                      ("installed Java trust anchor " & Alias)
+               else Failure_Message ("failed to install"));
          when Remove =>
             if not Java_Contains_Certificate
               (Keytool, Keystore, Alias, Certificate)
             then
+               State := Error;
                Message :=
                  Ada.Strings.Unbounded.To_Unbounded_String
                    ("Java trust anchor fingerprint mismatch; refusing removal");
@@ -735,10 +846,12 @@ package body Devcert_Trust_Stores is
                   Ran);
             end if;
             Success := Ran;
+            State := (if Success then Installed else Failed_State);
             Message :=
-              Ada.Strings.Unbounded.To_Unbounded_String
-                ((if Ran then "removed" else "failed to remove")
-                 & " Java trust anchor " & Alias);
+              (if Success
+               then Ada.Strings.Unbounded.To_Unbounded_String
+                      ("removed Java trust anchor " & Alias)
+               else Failure_Message ("failed to remove"));
       end case;
    end Apply_Java;
 
@@ -878,7 +991,7 @@ package body Devcert_Trust_Stores is
      (Operation   : Action;
       Certificate : String;
       Fingerprint : String;
-      Success     : out Boolean;
+      State       : out Trust_State;
       Message     : out Unbounded_String)
    is
       Certutil  : constant String := Locate ("certutil");
@@ -941,14 +1054,16 @@ package body Devcert_Trust_Stores is
          Ada.Strings.Unbounded.Append (Combined, Text);
       end Note;
    begin
-      Success := False;
+      State := Error;
       Discover_NSS_Databases (Databases, Found);
 
       if Certutil = "" then
+         State := Tool_Missing;
          Message :=
            Ada.Strings.Unbounded.To_Unbounded_String ("certutil is not installed");
          return;
       elsif Found = 0 then
+         State := Tool_Missing;
          Message :=
            Ada.Strings.Unbounded.To_Unbounded_String ("NSS database is missing");
          return;
@@ -1011,7 +1126,7 @@ package body Devcert_Trust_Stores is
          end case;
       end loop;
 
-      Success := Failures = 0;
+      State := (if Failures = 0 then Installed else Error);
       Message := Combined;
    end Apply_NSS;
 
@@ -1019,15 +1134,16 @@ package body Devcert_Trust_Stores is
      (Operation   : Action;
       Certificate : String;
       Fingerprint : String;
-      Success     : out Boolean;
+      State       : out Trust_State;
       Message     : out Unbounded_String)
    is
       Security : constant String := Locate ("security");
       Ran      : Boolean := False;
       Status   : Integer := -1;
    begin
-      Success := False;
+      State := Error;
       if Security = "" then
+         State := Tool_Missing;
          Message :=
            Ada.Strings.Unbounded.To_Unbounded_String ("security is not installed");
          return;
@@ -1056,8 +1172,6 @@ package body Devcert_Trust_Stores is
                Ran,
                Status);
       end case;
-      Success := Ran;
-
       --  A denial is not a broken store, and on macOS it is the ordinary case:
       --  the system keychain belongs to root. Reported as an error, the only
       --  thing wrong -- that this has to run under sudo -- was the one thing
@@ -1065,9 +1179,11 @@ package body Devcert_Trust_Stores is
       --  attempt has failed: whether a keychain will have us is the keychain's
       --  answer to give, not ours to predict.
       if Ran then
+         State := Installed;
          Message :=
            Ada.Strings.Unbounded.To_Unbounded_String ("updated macOS trust store");
       elsif not Hostkit.Host.Is_Elevated then
+         State := Permission_Required;
          Message :=
            Ada.Strings.Unbounded.To_Unbounded_String
              ("macOS trust store update requires permission for "
@@ -1084,7 +1200,7 @@ package body Devcert_Trust_Stores is
      (Operation   : Action;
       Certificate : String;
       Fingerprint : String;
-      Success     : out Boolean;
+      State       : out Trust_State;
       Message     : out Unbounded_String)
    is
       --  Windows is the one store that will not be told which certificate to
@@ -1098,8 +1214,9 @@ package body Devcert_Trust_Stores is
       --  was not updated, which is the least useful half of what was known.
       Status   : Integer := -1;
    begin
-      Success := False;
+      State := Error;
       if Certutil = "" then
+         State := Tool_Missing;
          Message :=
            Ada.Strings.Unbounded.To_Unbounded_String ("certutil is not installed");
          return;
@@ -1128,7 +1245,7 @@ package body Devcert_Trust_Stores is
                Listed  : Boolean := False;
             begin
                if Hash = "" then
-                  Success := False;
+                  State := Error;
                   Message :=
                     Ada.Strings.Unbounded.To_Unbounded_String
                       ("cannot identify the certificate to remove from the "
@@ -1159,7 +1276,7 @@ package body Devcert_Trust_Stores is
                                   (Ada.Strings.Unbounded.To_String (Listing)),
                                 Hash) /= 0
                   then
-                     Success := False;
+                     State := Error;
                      Message :=
                        Ada.Strings.Unbounded.To_Unbounded_String
                          ("certutil reported a removal but the certificate is "
@@ -1169,14 +1286,14 @@ package body Devcert_Trust_Stores is
                end if;
             end;
       end case;
-      Success := Ran;
-
       --  The machine Root store is the administrator's, the same way the system
       --  keychain is root's; see the note in Apply_MacOS.
       if Ran then
+         State := Installed;
          Message :=
            Ada.Strings.Unbounded.To_Unbounded_String ("updated Windows trust store");
       elsif not Hostkit.Host.Is_Elevated then
+         State := Permission_Required;
          Message :=
            Ada.Strings.Unbounded.To_Unbounded_String
              ("Windows trust store update requires permission for "
@@ -1194,42 +1311,22 @@ package body Devcert_Trust_Stores is
       Operation   : Action;
       Certificate : String;
       Fingerprint : String;
-      Success     : out Boolean;
+      State       : out Trust_State;
       Message     : out Unbounded_String) is
    begin
       case Target is
          when Linux =>
-            Apply_Linux (Operation, Certificate, Fingerprint, Success, Message);
+            Apply_Linux (Operation, Certificate, Fingerprint, State, Message);
          when NSS =>
-            Apply_NSS (Operation, Certificate, Fingerprint, Success, Message);
+            Apply_NSS (Operation, Certificate, Fingerprint, State, Message);
          when Java =>
-            Apply_Java (Operation, Certificate, Fingerprint, Success, Message);
+            Apply_Java (Operation, Certificate, Fingerprint, State, Message);
          when MacOS =>
-            Apply_MacOS (Operation, Certificate, Fingerprint, Success, Message);
+            Apply_MacOS (Operation, Certificate, Fingerprint, State, Message);
          when Windows =>
-            Apply_Windows (Operation, Certificate, Fingerprint, Success, Message);
+            Apply_Windows (Operation, Certificate, Fingerprint, State, Message);
       end case;
    end Apply;
-
-   function State_From_Result
-     (Kind    : Trust_Store_Kind;
-      Success : Boolean;
-      Message : String) return Trust_State
-   is
-      pragma Unreferenced (Kind);
-   begin
-      if Success then
-         return Installed;
-      elsif Ada.Strings.Fixed.Index (Message, "not installed") /= 0
-        or else Ada.Strings.Fixed.Index (Message, "is missing") /= 0
-      then
-         return Tool_Missing;
-      elsif Ada.Strings.Fixed.Index (Message, "requires permission") /= 0 then
-         return Permission_Required;
-      else
-         return Error;
-      end if;
-   end State_From_Result;
 
    procedure Apply
      (Selection   : Store_Selection;
@@ -1263,13 +1360,16 @@ package body Devcert_Trust_Stores is
             Item_Message  : Unbounded_String;
             Item_State    : Trust_State;
          begin
+            --  Each store says what happened to it. This used to be read back
+            --  out of the message the store had just written -- a search for
+            --  "requires permission" and "not installed" -- so the exit code a
+            --  caller acts on depended on the wording of an English sentence,
+            --  and translating one would have turned a denial into a plain
+            --  error without anything failing.
             Apply
-              (Target, Operation, Certificate, Fingerprint, Item_Success,
+              (Target, Operation, Certificate, Fingerprint, Item_State,
                Item_Message);
-            Item_State :=
-              State_From_Result
-                (Kind, Item_Success,
-                 Ada.Strings.Unbounded.To_String (Item_Message));
+            Item_Success := Item_State = Installed;
 
             if I > 1 then
                Ada.Strings.Unbounded.Append (Combined, "; ");

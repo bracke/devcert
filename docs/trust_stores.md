@@ -39,6 +39,12 @@ A removal that succeeded is reported as `removed`: the same success, said the
 way round it happened, because `uninstall` answering `installed` reads as the
 opposite of what it did.
 
+Each adapter reports its own state. Nothing infers one from the wording of a
+message, so the messages can be translated without changing what a caller is
+told: a store that refuses an unprivileged process answers `permission-required`
+and exit 7 on every platform, a store whose tool is absent answers
+`tool-missing`, and neither is `error`.
+
 ## Linux
 
 Supported mechanisms include distribution system CA stores where available.

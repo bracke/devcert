@@ -50,6 +50,7 @@ package body Devcert_Test_Suite is
       Result.Add_Test (new Trust_Tests.Trust_Selection_Test);
       Result.Add_Test (new Trust_Tests.Trust_Plan_Test);
       Result.Add_Test (new Trust_Tests.Trust_Aggregate_Test);
+      Result.Add_Test (new Trust_Tests.Trust_Denial_Test);
       Result.Add_Test (new Trust_Tests.Trust_Linux_Mutation_Test);
       pragma Warnings (On, "use of an anonymous access type allocator");
       return Result;

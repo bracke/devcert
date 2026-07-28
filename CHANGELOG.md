@@ -35,6 +35,15 @@ Initial development release.
   been failing as though it needed privileges.
 * Removing a trust anchor that is not installed says so instead of reporting a
   removal that did not happen.
+* Each trust store says what became of it, instead of the caller reading that
+  back out of the sentence the store had just written. A denial was told apart
+  from a broken store by searching the message for "requires permission", so
+  translating one message would have changed the exit code a caller acts on
+  without anything failing.
+* A Java keystore that will not have us -- the JDK's own `cacerts` on a system
+  install, unprivileged -- is reported as `permission-required` and exit 7,
+  where it used to be a plain error. The keystore is named, resolved through the
+  symlink a distribution puts `keytool` behind.
 * A Java trust anchor devcert installed is recognised as its own. `keytool
   -list -rfc` names the alias and the entry type before the armour, and the PEM
   decoder began one line into the text, so devcert compared its CA against that
