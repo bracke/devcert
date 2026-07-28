@@ -501,6 +501,76 @@ package body Devcert_Test_Suite.Cli_Tests is
          end if;
       end if;
       Ada.Environment_Variables.Clear ("DEVCERT_LINUX_TRUST_DIR");
+
+      --  caroot had no test at all, though it is one of the eight command
+      --  groups and the one a script uses to find everything else.
+      declare
+         Root : constant String := Paths.Scratch ("devcert-aunit-cli-caroot");
+      begin
+         if Ada.Directories.Exists (Root) then
+            Ada.Directories.Delete_Tree (Root);
+         end if;
+         Run_Devcert
+           ([new String'("--ca-root"),
+             new String'(Root),
+             new String'("--plain"),
+             new String'("caroot")],
+            Code,
+            Output);
+         Assert (Code = Devcert_Exit_Codes.Success, "caroot succeeds");
+         Assert
+           (Index (Output, Root) /= 0,
+            "caroot reports the CA root it was given");
+         Assert
+           (not Ada.Directories.Exists (Root),
+            "caroot reports a path without creating it");
+
+         Run_Devcert
+           ([new String'("--ca-root"),
+             new String'(Root),
+             new String'("--json"),
+             new String'("caroot")],
+            Code,
+            Output);
+         Assert
+           (Index
+              (Output,
+               "{""schema_version"":1,""status"":""success"",""command"":""caroot""")
+            /= 0,
+            "caroot speaks the stable JSON envelope");
+      end;
+
+      --  A CSR brings its own key, so there is none to write: cli.md says this
+      --  combination is refused, and nothing checked that it was.
+      declare
+         CSR_Root : constant String :=
+           Paths.Scratch ("devcert-aunit-cli-csr-keyfile");
+      begin
+         Run_Devcert
+           ([new String'("--ca-root"),
+             new String'(CSR_Root),
+             new String'("--plain"),
+             new String'("cert"),
+             new String'("--csr"),
+             new String'(CSR_Path),
+             new String'("--key-file"),
+             new String'(Paths.Scratch ("devcert-aunit-cli-unwanted.key"))],
+            Code,
+            Output);
+         --  The specific diagnostic, not merely a non-zero exit: the CSR file
+         --  here holds only an armour line, so "it failed" would have been
+         --  true either way.
+         Assert
+           (Code /= Devcert_Exit_Codes.Success,
+            "signing a CSR refuses --key-file, which it cannot honour");
+         Assert
+           (Index (Output, "--csr cannot be combined with") /= 0,
+            "and says which combination it refused");
+         Assert
+           (not Ada.Directories.Exists
+                  (Paths.Scratch ("devcert-aunit-cli-unwanted.key")),
+            "and writes no key when it refuses");
+      end;
    end Run_Test;
 
    overriding function Name (Item : Output_Mode_Test) return AUnit.Message_String is

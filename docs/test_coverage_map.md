@@ -7,7 +7,13 @@ This map records the public devcert surface covered by the AUnit suite.
 Packages: `Devcert.CLI`, `Devcert.Commands*`.
 
 Coverage: executable parser errors, no-mutation failures, certificate workflow,
-and install workflow.
+install workflow, `caroot` reporting a root without creating it, and the
+refusal of `--key-file` with `--csr` -- asserted through the diagnostic rather
+than the exit code, because an incomplete CSR fails either way.
+
+Every command group is exercised through the executable rather than by calling
+its package: `Devcert.CLI`, `Devcert.Commands.*` and `Devcert.Output.*` have no
+unit-level tests.
 
 ## Context And Results
 

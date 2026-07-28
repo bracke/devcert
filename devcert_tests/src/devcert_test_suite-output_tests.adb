@@ -59,6 +59,57 @@ package body Devcert_Test_Suite.Output_Tests is
    end Name;
    overriding procedure Run_Test (Item : in out Json_Envelope_Test) is
       pragma Unreferenced (Item);
+
+      procedure Run_Devcert
+        (Args        : GNAT.OS_Lib.Argument_List;
+         Exit_Code   : out Integer;
+         Output_Text : out Unbounded_String)
+      is
+         Spawned     : Boolean := False;
+         Output_File : constant String :=
+           Paths.Scratch ("devcert-aunit-envelope.out");
+      begin
+         if Ada.Directories.Exists (Output_File) then
+            Ada.Directories.Delete_File (Output_File);
+         end if;
+         GNAT.OS_Lib.Spawn
+           (Paths.Devcert_Executable, Args, Output_File, Spawned, Exit_Code,
+            Err_To_Out => True);
+         Output_Text :=
+           (if Ada.Directories.Exists (Output_File)
+            then To_Unbounded_String (Devcert_Secure_Files.Read (Output_File))
+            else Null_Unbounded_String);
+         if Ada.Directories.Exists (Output_File) then
+            Ada.Directories.Delete_File (Output_File);
+         end if;
+         if not Spawned then
+            Exit_Code := -1;
+         end if;
+      end Run_Devcert;
+
+      Root   : constant String := Paths.Scratch ("devcert-aunit-envelope-root");
+      Code   : Integer := 0;
+      Output : Unbounded_String;
+
+      --  The contract says every command answers in this envelope. It was only
+      --  ever checked for two of them.
+      procedure Assert_Envelope (Command : String) is
+      begin
+         Run_Devcert
+           ([new String'("--ca-root"),
+             new String'(Root),
+             new String'("--json"),
+             new String'(Command)],
+            Code,
+            Output);
+         Assert
+           (Index
+              (Output,
+               "{""schema_version"":1,""status"":""success"",""command"":"""
+               & Command & """")
+            /= 0,
+            Command & " answers in the stable JSON envelope");
+      end Assert_Envelope;
    begin
       Assert
         (Devcert_JSON.Status ("ca", "created") =
@@ -70,6 +121,17 @@ package body Devcert_Test_Suite.Output_Tests is
          "{""schema_version"":1,""status"":""error"",""command"":""issue"","
          & """error"":""bad name""}",
          "error envelope is deterministic");
+
+      if Ada.Directories.Exists (Root) then
+         Ada.Directories.Delete_Tree (Root);
+      end if;
+      Assert_Envelope ("caroot");
+      Assert_Envelope ("cert");
+      Assert_Envelope ("inspect");
+      Assert_Envelope ("doctor");
+      if Ada.Directories.Exists (Root) then
+         Ada.Directories.Delete_Tree (Root);
+      end if;
       Assert
         (Devcert_JSON.Artifact ("inspect", "fingerprint", "aa:bb") =
          "{""schema_version"":1,""status"":""success"",""command"":""inspect"","

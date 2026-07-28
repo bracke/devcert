@@ -12,6 +12,10 @@ one file.
 The public-package coverage map is maintained in
 `docs/test_coverage_map.md`.
 
+`devcert_tools test-registration-check` fails if a test type is declared and
+never added to the suite. Splitting the suite by area made that worth checking:
+such a test compiles, never runs, and nothing says so.
+
 The default suite currently contains 32 deterministic tests. Categories covered
 by automated tests include:
 

@@ -794,6 +794,54 @@ procedure Devcert_Tools is
       Put_Line ("tree-check passed");
    end Run_Tree_Check;
 
+   --  Every declared test must be in the suite. Splitting the tests by area
+   --  made this worth checking: a test type can be written, compiled and never
+   --  run, and nothing about the build says so -- the suite simply reports a
+   --  smaller number than anyone counts.
+   procedure Run_Test_Registration_Check is
+      State : Check_State;
+      Suite : constant String :=
+        Project_Tools.Files.Read_Raw_File
+          (Project_Root & "/devcert_tests/src/devcert_test_suite.adb");
+
+      procedure Check_Spec (Path : String; Name : String) is
+         Text  : constant String :=
+           (if Project_Tools.Text.Ends_With (Lower (Name), "_tests.ads")
+            then Project_Tools.Files.Read_Raw_File (Path) else "");
+         First : Natural := Text'First;
+         Last  : Natural;
+      begin
+         while First < Text'Last loop
+            declare
+               Start : constant Natural :=
+                 Project_Tools.Text.Index_From (Text, "   type ", First);
+            begin
+               exit when Start = 0;
+               Last := Project_Tools.Text.Index_From (Text, " is", Start);
+               exit when Last = 0;
+
+               declare
+                  Item : constant String := Trim (Text (Start + 7 .. Last - 1));
+               begin
+                  if Project_Tools.Text.Ends_With (Item, "_Test")
+                    and then not Project_Tools.Text.Contains
+                                   (Suite, "." & Item & ")")
+                  then
+                     Fail
+                       (State, Path,
+                        "test " & Item & " is declared but never added to the suite");
+                  end if;
+               end;
+               First := Last + 1;
+            end;
+         end loop;
+      end Check_Spec;
+   begin
+      Walk (Project_Root & "/devcert_tests/src", Check_Spec'Access);
+      Require_Success (State, "test-registration-check");
+      Put_Line ("test-registration-check passed");
+   end Run_Test_Registration_Check;
+
    procedure Run_Documentation_Check is
       procedure Require_Doc (Path : String) is
       begin
@@ -917,6 +965,7 @@ procedure Devcert_Tools is
       Run_Catalog_Check;
       Run_Tree_Check;
       Run_Documentation_Check;
+      Run_Test_Registration_Check;
       Run_Generated_Artifact_Check;
       Run_Parity_Check;
       Project_Tools.Release_Checks.Run
@@ -1099,6 +1148,7 @@ procedure Devcert_Tools is
       Put_Line ("  generated-artifact-check");
       Put_Line ("  dist");
       Put_Line ("  documentation");
+      Put_Line ("  test-registration-check");
       Put_Line ("  parity-check");
       Put_Line ("  tooling-tests");
       Put_Line ("  platform-check linux-system|macos-system|windows-system");
@@ -1123,6 +1173,8 @@ begin
       Run_Generated_Artifact_Check;
    elsif Command = "dist" then
       Run_Dist;
+   elsif Command = "test-registration-check" then
+      Run_Test_Registration_Check;
    elsif Command = "documentation" then
       Run_Documentation_Check;
    elsif Command = "parity-check" then
