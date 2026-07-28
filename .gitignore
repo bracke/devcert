@@ -47,3 +47,9 @@ Thumbs.db
 
 # Staged binary artifact from tools/package_artifact
 /devcert-*-x86_64.tar.gz
+
+# Release-check crate (generated Alire artifacts)
+/check_devcert/obj/
+/check_devcert/bin/
+/check_devcert/alire/
+/check_devcert/alire.lock

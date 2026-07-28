@@ -1,6 +1,17 @@
 # Release Process
 
-Release candidates are produced by the Ada tooling crate:
+The release gate is `check_devcert`, as in the sibling crates:
+
+```text
+cd check_devcert
+alr build
+bin/check_devcert
+```
+
+It verifies the Alire-selected toolchain, the documentation a release depends
+on, builds devcert and its suite, runs the suite, and then runs the
+devcert-specific checks. Those live in the tooling crate, because they are
+about devcert rather than about releasing:
 
 ```text
 cd devcert_tools
