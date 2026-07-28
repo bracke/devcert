@@ -207,6 +207,9 @@ jobs:
           echo "uninstall exit: $?"
 
           echo
+          # The store, not devcert's account of it: a removal that reported
+          # success while leaving the certificate trusted is what this run
+          # found the first time.
           echo "=== Root store after uninstall (expect nothing)"
           cmd //c "certutil -store Root" | grep -i devcert \
             || echo "absent after uninstall"
@@ -221,6 +224,9 @@ jobs:
         # The runner is thrown away, but a check that can leave a trusted root
         # behind should still be the one that takes it out again.
         run: |
+          # grep exits non-zero when it finds nothing, which is the good case
+          # here; with -e that failed the job over a clean store.
+          set +e
           set -u
           for attempt in 1 2 3; do
             # certutil prints the hash after the subject, not before it.
@@ -232,10 +238,10 @@ jobs:
             echo "removing $HASH"
             cmd //c "certutil -delstore Root $HASH" || true
           done
-          cmd //c "certutil -store Root" | grep -i devcert && {
+          if cmd //c "certutil -store Root" | grep -i devcert; then
             echo "::error::a devcert certificate is still trusted on this runner"
             exit 1
-          }
+          fi
           echo "clean"
 
       - name: Keep the transcript

@@ -37,9 +37,10 @@ Package: `Devcert_Crypto`, through `openssl`.
 
 Coverage: an issued leaf verifies against the CA that signed it and not against
 one that did not; the fingerprint devcert reports is the one `openssl` reports
-for the same certificate; and each profile carries what it claims -- serverAuth
-with the name as a DNS SAN, an address as an IP SAN, clientAuth without also
-claiming serverAuth, emailProtection with the address. Skipped aloud where the
+for the same certificate, and so is the SHA-1 the Windows store indexes by; and
+each profile carries what it claims -- serverAuth with the name as a DNS SAN, an
+address as an IP SAN, clientAuth without also claiming serverAuth,
+emailProtection with the address. Skipped aloud where the
 host has no `openssl`. Signing a CSR is covered end to end against a request
 openssl produced: the certificate carries the request's subject, certifies the
 request's public key rather than another, and chains to the CA.

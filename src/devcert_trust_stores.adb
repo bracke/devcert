@@ -1,3 +1,4 @@
+with Ada.Characters.Handling;
 with Ada.Environment_Variables;
 with Ada.Directories;
 with Ada.Text_IO;
@@ -1086,6 +1087,11 @@ package body Devcert_Trust_Stores is
       Success     : out Boolean;
       Message     : out Unbounded_String)
    is
+      --  Windows is the one store that will not be told which certificate to
+      --  remove in devcert's own terms: it indexes by SHA-1, and that is
+      --  computed from the certificate below rather than taken from here.
+      pragma Unreferenced (Fingerprint);
+
       Certutil : constant String := Locate ("certutil");
       Ran      : Boolean := False;
       --  What certutil made of it. The message used to say only that the store
@@ -1109,13 +1115,59 @@ package body Devcert_Trust_Stores is
                Ran,
                Status);
          when Remove =>
-            Run
-              (Certutil,
-               [new String'("-delstore"),
-                new String'("Root"),
-                new String'(Safe_Fingerprint (Fingerprint))],
-               Ran,
-               Status);
+            declare
+               --  The hash the store indexes by. Handed the SHA-256 devcert
+               --  identifies certificates with, certutil exits zero having
+               --  deleted nothing -- so uninstall reported a removal that had
+               --  not happened, which is the one lie a trust tool must not
+               --  tell.
+               Hash : constant String :=
+                 CryptoLib.Certificates.SHA1_Fingerprint
+                   (Read_Text_File (Certificate));
+               Listing : Unbounded_String;
+               Listed  : Boolean := False;
+            begin
+               if Hash = "" then
+                  Success := False;
+                  Message :=
+                    Ada.Strings.Unbounded.To_Unbounded_String
+                      ("cannot identify the certificate to remove from the "
+                       & "Windows trust store");
+                  return;
+               end if;
+
+               Run
+                 (Certutil,
+                  [new String'("-delstore"),
+                   new String'("Root"),
+                   new String'(Hash)],
+                  Ran,
+                  Status);
+
+               --  And then look, because the exit status has already been
+               --  wrong about this once.
+               if Ran then
+                  Run_Capture
+                    (Certutil,
+                     [new String'("-store"), new String'("Root")],
+                     Listed,
+                     Listing);
+
+                  if Listed
+                    and then Ada.Strings.Fixed.Index
+                               (Ada.Characters.Handling.To_Lower
+                                  (Ada.Strings.Unbounded.To_String (Listing)),
+                                Hash) /= 0
+                  then
+                     Success := False;
+                     Message :=
+                       Ada.Strings.Unbounded.To_Unbounded_String
+                         ("certutil reported a removal but the certificate is "
+                          & "still in the Windows trust store");
+                     return;
+                  end if;
+               end if;
+            end;
       end case;
       Success := Ran;
 

@@ -2,6 +2,7 @@ with AUnit.Assertions;
 with Ada.Strings;
 with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded;
+with CryptoLib.Certificates;
 with Devcert_Crypto;
 with Devcert_Secure_Files;
 with Devcert_State;
@@ -660,6 +661,40 @@ package body Devcert_Test_Suite.Certificate_Tests is
          Assert
            (Index (To_Unbounded_String (Reported), Ours) /= 0,
             "the fingerprint devcert reports is the certificate's own");
+      end;
+
+      --  The SHA-1 of the same certificate, which is not devcert's identity for
+      --  anything but is what the Windows store indexes by. Handed a SHA-256,
+      --  certutil exited zero having deleted nothing, so a wrong value here
+      --  means uninstall reports removals that did not happen.
+      declare
+         Reported : constant String :=
+           Ada.Characters.Handling.To_Lower
+             (Openssl_Output
+                ([new String'("x509"),
+                  new String'("-in"),
+                  new String'(CA_Path),
+                  new String'("-noout"),
+                  new String'("-fingerprint"),
+                  new String'("-sha1")]));
+         Ours : constant String :=
+           CryptoLib.Certificates.SHA1_Fingerprint (To_String (CA_Cert));
+         Spaced : Unbounded_String;
+      begin
+         --  openssl prints it colon-separated; the store wants plain hex.
+         for Position in Ours'Range loop
+            Append (Spaced, Ours (Position));
+            if Position < Ours'Last and then Position mod 2 = 0 then
+               Append (Spaced, ":");
+            end if;
+         end loop;
+
+         Assert
+           (Ours'Length = 40,
+            "the SHA-1 fingerprint is forty hex digits, as the store spells it");
+         Assert
+           (Index (To_Unbounded_String (Reported), To_String (Spaced)) /= 0,
+            "and is the one openssl reports for the same certificate");
       end;
 
       Ada.Directories.Delete_File (CA_Path);

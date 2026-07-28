@@ -35,6 +35,11 @@ Initial development release.
   been failing as though it needed privileges.
 * Removing a trust anchor that is not installed says so instead of reporting a
   removal that did not happen.
+* Removing the CA from the Windows trust store removes it. `certutil` matches
+  the SHA-1 hash the store indexes by, and handed devcert's SHA-256 identity it
+  exited zero having deleted nothing, so `uninstall` reported a removal that had
+  not happened. The removal is now asked for by that hash, and the store is read
+  back afterwards rather than the exit status believed.
 * Trust-store commands capture their output into the host's temporary
   directory instead of `/tmp`, spelled out. Windows has no such directory, so
   the spawn could not create the file it was told to capture into and every
