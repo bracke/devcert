@@ -35,6 +35,11 @@ Initial development release.
   been failing as though it needed privileges.
 * Removing a trust anchor that is not installed says so instead of reporting a
   removal that did not happen.
+* Firefox profiles under Snap and Flatpak are found. Each packaging confines
+  Firefox to its own profile directory, and Ubuntu has shipped it as a snap
+  since 22.04 -- so `~/.mozilla` is empty on the commonest desktop there is, and
+  an anchor installed only there went into nothing while the store reported
+  success. Every root that exists is used, because a machine can have two.
 * Trust stores moved to the `truststores` crate, which also reads them: what
   the host already trusts, as PEM a verifier can be pointed at. devcert issues
   certificates and asks that crate to install them. `DEVCERT_LINUX_TRUST_DIR`,
