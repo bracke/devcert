@@ -334,83 +334,105 @@ package body Devcert_Test_Suite.Trust_Tests is
       Trust_Dir : constant String := Paths.Scratch ("devcert-aunit-linux-trust");
       Cert_Path : constant String := Paths.Scratch ("devcert-aunit-linux-root.pem");
       Target    : constant String := Trust_Dir & "/devcert-aabbcc.crt";
-      Cert      : constant String :=
-        "-----BEGIN CERTIFICATE-----" & ASCII.LF
-        & "MIIBdevcerttrustedroot" & ASCII.LF
-        & "-----END CERTIFICATE-----" & ASCII.LF;
-      Other_Cert : constant String :=
-        "-----BEGIN CERTIFICATE-----" & ASCII.LF
-        & "MIIBdifferenttrustedroot" & ASCII.LF
-        & "-----END CERTIFICATE-----" & ASCII.LF;
+      --  Real certificates, because the store decides whether an anchor is ours
+      --  by what the armour holds, not by the text around it. This used to hand
+      --  it two lines of invented base64; cryptolib decodes through the PEM
+      --  structure now, so invented armour holds nothing, and an anchor that
+      --  matched compared as one that did not.
       Outcome : Devcert_Trust_Stores.Trust_State :=
         Devcert_Trust_Stores.Error;
       Message : Unbounded_String;
+
+      --  What the store reported, for an assertion that fails to say with.
+      --  Apply answers with a state and a message, and a check that keeps
+      --  neither leaves whoever reads the failure knowing only that some
+      --  branch was taken -- which is what happened to this one.
+      function Reported return String
+      is (" -- got " & Devcert_Trust_Stores.Trust_State'Image (Outcome)
+          & ", " & To_String (Message));
+
+      Made    : Unbounded_String;
+      Key     : Unbounded_String;
+      Other   : Unbounded_String;
+      Other_Key : Unbounded_String;
    begin
-      if Ada.Directories.Exists (Trust_Dir) then
+      Assert
+        (Devcert_Crypto.Create_CA (Made, Key) = Devcert_Crypto.Ok,
+         "a certificate to stage as an anchor");
+      Assert
+        (Devcert_Crypto.Create_CA (Other, Other_Key) = Devcert_Crypto.Ok,
+         "and another that is not the same certificate");
+
+      declare
+         Cert       : constant String := To_String (Made);
+         Other_Cert : constant String := To_String (Other);
+      begin
+         if Ada.Directories.Exists (Trust_Dir) then
+            Ada.Directories.Delete_Tree (Trust_Dir);
+         end if;
+         if Ada.Directories.Exists (Cert_Path) then
+            Ada.Directories.Delete_File (Cert_Path);
+         end if;
+
+         Ada.Environment_Variables.Set ("DEVCERT_LINUX_TRUST_DIR", Trust_Dir);
+         Devcert_Secure_Files.Atomic_Write (Cert_Path, Cert);
+
+         Assert
+           (Devcert_Trust_Stores.Probe (Devcert_Trust_Stores.System_Store)
+            = Devcert_Trust_Stores.Available,
+            "configured Linux trust directory makes system store available");
+
+         Devcert_Trust_Stores.Apply
+           (Devcert_Trust_Stores.Linux,
+            Devcert_Trust_Stores.Install,
+            Cert_Path,
+            "aa:bb:cc",
+            Outcome,
+            Message);
+         Assert
+           (Outcome = Devcert_Trust_Stores.Installed,
+            "configured Linux trust anchor installs" & Reported);
+         Assert (Ada.Directories.Exists (Target), "trust anchor file is staged");
+
+         Devcert_Trust_Stores.Apply
+           (Devcert_Trust_Stores.Linux,
+            Devcert_Trust_Stores.Remove,
+            Cert_Path,
+            "aa:bb:cc",
+            Outcome,
+            Message);
+         Assert
+           (Outcome = Devcert_Trust_Stores.Installed,
+            "matching configured Linux trust anchor removes" & Reported);
+         Assert
+           (not Ada.Directories.Exists (Target),
+            "matching trust anchor file is deleted");
+
+         Ada.Directories.Copy_File (Cert_Path, Target);
+         Devcert_Secure_Files.Atomic_Write (Cert_Path, Other_Cert);
+         Devcert_Trust_Stores.Apply
+           (Devcert_Trust_Stores.Linux,
+            Devcert_Trust_Stores.Remove,
+            Cert_Path,
+            "aa:bb:cc",
+            Outcome,
+            Message);
+         --  And says why in its own terms: a refusal here is the store being
+         --  wrong about what it holds, not a denial and not a missing tool.
+         Assert
+           (Outcome = Devcert_Trust_Stores.Error,
+            "mismatched Linux trust anchor refuses removal");
+         Assert
+           (Ada.Directories.Exists (Target),
+            "mismatched trust anchor file is preserved");
+         Assert
+           (Index (Message, "mismatch") /= 0,
+            "mismatched trust anchor diagnostic is deterministic");
+
+         Ada.Environment_Variables.Clear ("DEVCERT_LINUX_TRUST_DIR");
          Ada.Directories.Delete_Tree (Trust_Dir);
-      end if;
-      if Ada.Directories.Exists (Cert_Path) then
          Ada.Directories.Delete_File (Cert_Path);
-      end if;
-
-      Ada.Environment_Variables.Set ("DEVCERT_LINUX_TRUST_DIR", Trust_Dir);
-      Devcert_Secure_Files.Atomic_Write (Cert_Path, Cert);
-
-      Assert
-        (Devcert_Trust_Stores.Probe (Devcert_Trust_Stores.System_Store)
-         = Devcert_Trust_Stores.Available,
-         "configured Linux trust directory makes system store available");
-
-      Devcert_Trust_Stores.Apply
-        (Devcert_Trust_Stores.Linux,
-         Devcert_Trust_Stores.Install,
-         Cert_Path,
-         "aa:bb:cc",
-         Outcome,
-         Message);
-      Assert
-        (Outcome = Devcert_Trust_Stores.Installed,
-         "configured Linux trust anchor installs");
-      Assert (Ada.Directories.Exists (Target), "trust anchor file is staged");
-
-      Devcert_Trust_Stores.Apply
-        (Devcert_Trust_Stores.Linux,
-         Devcert_Trust_Stores.Remove,
-         Cert_Path,
-         "aa:bb:cc",
-         Outcome,
-         Message);
-      Assert
-        (Outcome = Devcert_Trust_Stores.Installed,
-         "matching configured Linux trust anchor removes");
-      Assert
-        (not Ada.Directories.Exists (Target),
-         "matching trust anchor file is deleted");
-
-      Ada.Directories.Copy_File (Cert_Path, Target);
-      Devcert_Secure_Files.Atomic_Write (Cert_Path, Other_Cert);
-      Devcert_Trust_Stores.Apply
-        (Devcert_Trust_Stores.Linux,
-         Devcert_Trust_Stores.Remove,
-         Cert_Path,
-         "aa:bb:cc",
-         Outcome,
-         Message);
-      --  And says why in its own terms: a refusal here is the store being
-      --  wrong about what it holds, not a denial and not a missing tool.
-      Assert
-        (Outcome = Devcert_Trust_Stores.Error,
-         "mismatched Linux trust anchor refuses removal");
-      Assert
-        (Ada.Directories.Exists (Target),
-         "mismatched trust anchor file is preserved");
-      Assert
-        (Index (Message, "mismatch") /= 0,
-         "mismatched trust anchor diagnostic is deterministic");
-
-      Ada.Environment_Variables.Clear ("DEVCERT_LINUX_TRUST_DIR");
-      Ada.Directories.Delete_Tree (Trust_Dir);
-      Ada.Directories.Delete_File (Cert_Path);
+      end;
    end Run_Test;
 
 end Devcert_Test_Suite.Trust_Tests;
