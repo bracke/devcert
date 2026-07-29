@@ -35,6 +35,17 @@ Initial development release.
   been failing as though it needed privileges.
 * Removing a trust anchor that is not installed says so instead of reporting a
   removal that did not happen.
+* Host facts are asked of `hostkit` rather than guessed from the environment:
+  where devcert's own executable is (it took the directory part of `argv[0]`,
+  which is a relative path when devcert is run as `./bin/devcert` and a
+  different program of the same name when a PATH search resolves it -- either
+  way the message catalogue is looked for in the wrong place), where the user's
+  home directory is, where per-user application data lives, and which language
+  the user reads. That last one matters on Windows, which sets none of `LC_ALL`,
+  `LC_MESSAGES` or `LANG`: every Windows user read English whatever they had
+  chosen.
+* Trust-store commands run through `hostkit`, under a deadline. A tool that
+  stops talking no longer stops devcert.
 * Human-readable output is translated into 34 European languages, chosen by
   `DEVCERT_LOCALE`, `LC_ALL`, `LC_MESSAGES` or `LANG`. The translations are not
   reviewed by native speakers; machine-readable output does not move.

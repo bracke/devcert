@@ -39,6 +39,11 @@ do not change.
 To force English regardless of the host: `DEVCERT_LOCALE=en`, which takes
 precedence over `LC_ALL`, `LC_MESSAGES` and `LANG`.
 
+Where none of those is set, the host is asked directly through
+`Hostkit.Host.Native_Locale`. That is the ordinary case on Windows, which keeps
+the user's language in the system rather than in the environment: without it
+every Windows user reads English whatever they chose.
+
 ## Text Encoding
 
 The catalog is UTF-8 and devcert prints the bytes it read. That needs the

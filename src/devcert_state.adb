@@ -1,15 +1,16 @@
 with Ada.Environment_Variables;
 
+with Hostkit.Fs;
+
 package body Devcert_State is
+   --  Asked of the host rather than of the environment: HOME and USERPROFILE
+   --  are conventions a process can be started without, and the CA root goes
+   --  here. "." was the old answer when neither was set, which put a private
+   --  key in whatever directory the caller happened to be in.
    function Home return String is
+      Own : constant String := Hostkit.Fs.Home_Directory;
    begin
-      if Ada.Environment_Variables.Exists ("HOME") then
-         return Ada.Environment_Variables.Value ("HOME");
-      elsif Ada.Environment_Variables.Exists ("USERPROFILE") then
-         return Ada.Environment_Variables.Value ("USERPROFILE");
-      else
-         return ".";
-      end if;
+      return (if Own = "" then "." else Own);
    end Home;
 
    function Base_Directory return String is

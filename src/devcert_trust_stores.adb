@@ -10,10 +10,13 @@ with GNAT.OS_Lib;
 with CryptoLib.Certificates;
 
 with Hostkit.Fs;
+with Hostkit.Process;
 with Hostkit.Host;
 
 package body Devcert_Trust_Stores is
-   use type GNAT.OS_Lib.String_Access;
+   --  Long enough for a keychain prompt to be answered, short enough that a
+   --  tool which has stopped talking does not hold devcert for ever.
+   Command_Timeout_Ms : constant := 120_000;
 
    type Linux_System_Backend is
      (No_Backend,
@@ -255,19 +258,13 @@ package body Devcert_Trust_Stores is
       return "devcert-" & Safe_Fingerprint (Fingerprint);
    end Fingerprint_Alias;
 
+   --  Asked of the host: a name resolves through PATHEXT on Windows, where
+   --  certutil is certutil.exe, and a resolved path is what the spawn below
+   --  needs -- an unresolved name that fails to start is indistinguishable
+   --  from a tool that ran and refused.
    function Locate (Name : String) return String is
-      Found : GNAT.OS_Lib.String_Access := GNAT.OS_Lib.Locate_Exec_On_Path (Name);
    begin
-      if Found = null then
-         return "";
-      else
-         declare
-            Result : constant String := Found.all;
-         begin
-            GNAT.OS_Lib.Free (Found);
-            return Result;
-         end;
-      end if;
+      return Hostkit.Process.Locate (Name);
    end Locate;
 
    function NSS_Database return String;
@@ -332,34 +329,54 @@ package body Devcert_Trust_Stores is
       end case;
    end Probe;
 
+   --  Run a tool and report how it went.
+   --
+   --  Through hostkit, which knows what a spawn means on each host and gives
+   --  the child somewhere to write. devcert used to do this itself, capturing
+   --  into /tmp spelled out -- a directory Windows has not got, so the spawn
+   --  could not create the file it was told to capture into and every
+   --  trust-store command there reported failure whatever the tool did.
+   --
+   --  Under a deadline, because a trust tool that never returns used to mean a
+   --  devcert that never returns.
    procedure Run
      (Program     : String;
       Args        : GNAT.OS_Lib.Argument_List;
       Success     : out Boolean;
       Exit_Status : out Integer)
    is
-      Return_Code : Integer := 1;
-      Spawned     : Boolean := False;
-      --  The host's own temporary directory. This was /tmp, spelled out, which
-      --  is a directory Windows does not have: the spawn could not create the
-      --  file it was told to capture into, so every trust-store command there
-      --  reported failure whatever the command itself did.
-      Output_File : constant String :=
+      Arguments : Hostkit.String_Vectors.Vector;
+      Out_Path  : constant String :=
         Ada.Directories.Compose
           (Hostkit.Fs.Temp_Directory, "devcert-trust-command.out");
+      Err_Path  : constant String :=
+        Ada.Directories.Compose
+          (Hostkit.Fs.Temp_Directory, "devcert-trust-command.err");
+      Outcome   : Hostkit.Process.Process_Outcome;
    begin
-      GNAT.OS_Lib.Spawn
-        (Program,
-         Args,
-         Output_File,
-         Spawned,
-         Return_Code,
-         Err_To_Out => True);
-      if Ada.Directories.Exists (Output_File) then
-         Ada.Directories.Delete_File (Output_File);
+      for Item of Args loop
+         Arguments.Append
+           (Ada.Strings.Unbounded.To_Unbounded_String (Item.all));
+      end loop;
+
+      Outcome :=
+        Hostkit.Process.Run_Captured
+          (Program     => Program,
+           Arguments   => Arguments,
+           Stdout_Path => Out_Path,
+           Stderr_Path => Err_Path,
+           Timeout_Ms  => Command_Timeout_Ms);
+
+      if Ada.Directories.Exists (Out_Path) then
+         Ada.Directories.Delete_File (Out_Path);
       end if;
-      Success := Spawned and then Return_Code = 0;
-      Exit_Status := (if Spawned then Return_Code else -1);
+      if Ada.Directories.Exists (Err_Path) then
+         Ada.Directories.Delete_File (Err_Path);
+      end if;
+
+      Success := Outcome.Started and then not Outcome.Timed_Out
+        and then Outcome.Exit_Status = 0;
+      Exit_Status := (if Outcome.Started then Outcome.Exit_Status else -1);
    end Run;
 
    procedure Run
@@ -391,35 +408,45 @@ package body Devcert_Trust_Stores is
          return "";
    end Read_Text_File;
 
+   --  The same, keeping what the tool said. Only stdout: what is read back
+   --  from these tools -- a certificate listing, a store dump -- is what they
+   --  print there.
    procedure Run_Capture
      (Program : String;
       Args    : GNAT.OS_Lib.Argument_List;
       Success : out Boolean;
       Output  : out Unbounded_String)
    is
-      Return_Code : Integer := 1;
-      Spawned     : Boolean := False;
-      --  A host temporary directory, for the reason given in Run.
-      Output_File : constant String :=
+      Arguments : Hostkit.String_Vectors.Vector;
+      Out_Path  : constant String :=
         Ada.Directories.Compose
           (Hostkit.Fs.Temp_Directory, "devcert-trust-capture.out");
+      Outcome   : Hostkit.Process.Process_Outcome;
    begin
-      GNAT.OS_Lib.Spawn
-        (Program,
-         Args,
-         Output_File,
-         Spawned,
-         Return_Code,
-         Err_To_Out => True);
+      for Item of Args loop
+         Arguments.Append
+           (Ada.Strings.Unbounded.To_Unbounded_String (Item.all));
+      end loop;
+
+      Outcome :=
+        Hostkit.Process.Run_Captured
+          (Program     => Program,
+           Arguments   => Arguments,
+           Stdout_Path => Out_Path,
+           Timeout_Ms  => Command_Timeout_Ms);
+
       Output :=
-        (if Ada.Directories.Exists (Output_File)
+        (if Ada.Directories.Exists (Out_Path)
          then Ada.Strings.Unbounded.To_Unbounded_String
-           (Read_Text_File (Output_File))
+                (Read_Text_File (Out_Path))
          else Ada.Strings.Unbounded.Null_Unbounded_String);
-      if Ada.Directories.Exists (Output_File) then
-         Ada.Directories.Delete_File (Output_File);
+
+      if Ada.Directories.Exists (Out_Path) then
+         Ada.Directories.Delete_File (Out_Path);
       end if;
-      Success := Spawned and then Return_Code = 0;
+
+      Success := Outcome.Started and then not Outcome.Timed_Out
+        and then Outcome.Exit_Status = 0;
    end Run_Capture;
 
    --  Asked of cryptolib, which owns PEM. Comparing scrubbed text here treated
@@ -871,21 +898,24 @@ package body Devcert_Trust_Stores is
    --  cert9.db of its own per profile, so a certificate installed only into the
    --  shared database is trusted by Chromium and by nothing else.
    function Firefox_Profile_Root return String is
-      function Env (Name : String) return String is
-        (if Ada.Environment_Variables.Exists (Name)
-         then Ada.Environment_Variables.Value (Name)
-         else "");
-
-      Home : constant String := Env ("HOME");
+      --  Where Firefox puts profiles is Firefox's business; where this host
+      --  keeps per-user application data is the host's, and that is the part
+      --  that differs. Asked of hostkit rather than assembled from environment
+      --  variables that may not be set.
+      Data : constant String := Hostkit.Fs.Application_Data_Directory;
+      Home : constant String := Hostkit.Fs.Home_Directory;
    begin
       case Hostkit.Host.Current is
          when Hostkit.Host.Windows =>
-            return (if Env ("APPDATA") = "" then ""
-                    else Env ("APPDATA") & "\Mozilla\Firefox\Profiles");
+            return (if Data = "" then ""
+                    else Data & "\Mozilla\Firefox\Profiles");
          when Hostkit.Host.MacOS =>
-            return (if Home = "" then ""
-                    else Home & "/Library/Application Support/Firefox/Profiles");
+            return (if Data = "" then ""
+                    else Data & "/Firefox/Profiles");
          when others =>
+            --  Linux keeps Firefox under the home directory, not under the
+            --  data directory: ~/.mozilla predates the specification and
+            --  Firefox never moved.
             return (if Home = "" then "" else Home & "/.mozilla/firefox");
       end case;
    end Firefox_Profile_Root;

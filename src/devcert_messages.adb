@@ -1,18 +1,15 @@
-with Ada.Command_Line;
 with Ada.Directories;
 with Ada.Environment_Variables;
 with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded;  use Ada.Strings.Unbounded;
 
-with GNAT.OS_Lib;
+with Hostkit.Fs;
 
 with Messages.Arguments;
 with Messages.Result;
 with Messages.Runtime;
 
 package body Devcert_Messages is
-   use type GNAT.OS_Lib.String_Access;
-
    --  Message text is rendered through the messages crate against a catalog, so
    --  it can be localized. Standard.Messages disambiguates the top-level crate
    --  from any locally named Messages.
@@ -20,45 +17,21 @@ package body Devcert_Messages is
    Locale      : Unbounded_String := To_Unbounded_String ("en");
    Initialized : Boolean := False;
 
-   --  Directory part of Path, or "" when Path carries no directory.
-   function Directory_Of (Path : String) return String is
-      Cut : Natural := 0;
-   begin
-      for Index in reverse Path'Range loop
-         if Path (Index) = '/' or else Path (Index) = '\' then
-            Cut := Index;
-            exit;
-         end if;
-      end loop;
-      return (if Cut = 0 then "" else Path (Path'First .. Cut - 1));
-   end Directory_Of;
-
    --  Directory holding the running executable, or "" when it cannot be
    --  determined. A bare program name is resolved through PATH so an installed
    --  devcert still locates the files shipped beside it.
+   --  Where this executable is, asked of the host.
+   --
+   --  This used to take the directory part of argv[0], and search PATH when
+   --  there was none. Neither is the question: argv[0] is what the caller
+   --  typed, so a relative one stops meaning anything the moment anything
+   --  changes directory, and a PATH search finds the first devcert on the path
+   --  rather than the one that is running. Both answers send the catalog
+   --  lookup somewhere else -- and a devcert that cannot find its catalog
+   --  prints message identifiers instead of messages.
    function Executable_Directory return String is
-      Name   : constant String := Ada.Command_Line.Command_Name;
-      Direct : constant String := Directory_Of (Name);
    begin
-      if Direct /= "" then
-         return Direct;
-      end if;
-
-      declare
-         Found : GNAT.OS_Lib.String_Access :=
-           GNAT.OS_Lib.Locate_Exec_On_Path (Name);
-      begin
-         if Found = null then
-            return "";
-         end if;
-
-         declare
-            Result : constant String := Directory_Of (Found.all);
-         begin
-            GNAT.OS_Lib.Free (Found);
-            return Result;
-         end;
-      end;
+      return Hostkit.Fs.Own_Executable_Directory;
    end Executable_Directory;
 
    --  The catalog ships in share/devcert. An installed devcert finds it next
