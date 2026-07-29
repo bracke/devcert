@@ -25,10 +25,15 @@ tarlib = { path = "../../../tarlib" }
 [[pins]]
 zlib = { path = "../../../zlib" }
 
-# zlib depends on cryptolib, and Alire honours pins only in the root crate, so
-# this root has to pin it as well.
+# zlib depends on cryptolib and tarlib on hostkit, and Alire honours pins only
+# in the root crate, so this root has to pin them as well. Without the hostkit
+# one the solver has a dependency it cannot place, and reports that by crashing
+# rather than by saying so.
 [[pins]]
 cryptolib = { path = "../../../cryptolib" }
+
+[[pins]]
+hostkit = { path = "../../../hostkit" }
 
 [build-profiles]
 "*" = "development"

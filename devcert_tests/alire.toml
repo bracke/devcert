@@ -20,5 +20,8 @@ devcert = { path = ".." }
 [[pins]]
 hostkit = { path = "../../hostkit" }
 
+[[pins]]
+truststores = { path = "../../truststores" }
+
 [build-profiles]
 "*" = "development"

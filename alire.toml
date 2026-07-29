@@ -19,6 +19,12 @@ cryptolib = "*"
 # rename that replaces an existing file. GNAT answers both wrong on some host
 # rather than failing -- see the comments in Hostkit.Fs.
 [[depends-on]]
+truststores = "*"
+
+[[pins]]
+truststores = { path = "../truststores" }
+
+[[depends-on]]
 hostkit = "*"
 
 [[depends-on]]

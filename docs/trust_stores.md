@@ -1,5 +1,16 @@
 # Trust-Store Architecture
 
+The stores themselves live in the `truststores` crate: what a host keeps its
+certificate authorities in, how they are discovered, and what a program is
+allowed to do about them. devcert issues certificates and asks that crate to
+install them. It also reads -- `System_Anchors` and `System_Trusts` answer what
+this host already trusts, which is what a program verifying a chain itself
+needs and what devcert does not.
+
+devcert's own environment variables are unchanged: `DEVCERT_LINUX_TRUST_DIR`,
+`DEVCERT_NSS_DB` and `DEVCERT_JAVA_KEYSTORE` are named to the crate at startup
+rather than read by it.
+
 Trust-store support is implemented through platform adapters with
 fingerprint-authoritative installation and removal.
 

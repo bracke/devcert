@@ -4,6 +4,7 @@ with "hostkit.gpr";
 with "i18n.gpr";
 with "messages.gpr";
 with "terminal_styles.gpr";
+with "truststores.gpr";
 abstract project Devcert_Config is
    Crate_Version := "0.1.0-dev";
    Crate_Name := "devcert";

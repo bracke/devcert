@@ -35,6 +35,10 @@ Initial development release.
   been failing as though it needed privileges.
 * Removing a trust anchor that is not installed says so instead of reporting a
   removal that did not happen.
+* Trust stores moved to the `truststores` crate, which also reads them: what
+  the host already trusts, as PEM a verifier can be pointed at. devcert issues
+  certificates and asks that crate to install them. `DEVCERT_LINUX_TRUST_DIR`,
+  `DEVCERT_NSS_DB` and `DEVCERT_JAVA_KEYSTORE` behave as before.
 * Host facts are asked of `hostkit` rather than guessed from the environment:
   where devcert's own executable is (it took the directory part of `argv[0]`,
   which is a relative path when devcert is run as `./bin/devcert` and a

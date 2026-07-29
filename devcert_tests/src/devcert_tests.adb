@@ -5,6 +5,7 @@ with AUnit;
 with AUnit.Reporter.Text;
 with AUnit.Run;
 
+with Devcert.Trust_Setup;
 with Devcert_Test_Suite;
 with Devcert_Test_Suite.Paths;
 
@@ -26,6 +27,11 @@ begin
    --  would be comparing a translation with the English it was written against.
    --  A test says what it means to say, not what the machine happens to speak.
    Ada.Environment_Variables.Set ("DEVCERT_LOCALE", "en");
+
+   --  The suite calls the trust-store crate directly as well as through the
+   --  executable, so it needs the same telling main gives it: these are the
+   --  variables devcert documents, and the tests set them.
+   Devcert.Trust_Setup.Apply;
 
    Ada.Environment_Variables.Set
      ("DEVCERT_CATALOG",
