@@ -35,6 +35,10 @@ Initial development release.
   been failing as though it needed privileges.
 * Removing a trust anchor that is not installed says so instead of reporting a
   removal that did not happen.
+* Every Java keystore on the host is installed into, not whichever `keytool`
+  came first on PATH. A machine with two JDKs has two stores, and an anchor in
+  one is not in the other. Aliases are deduplicated by resolved path, so one
+  anchor in one file is reported once.
 * Firefox profiles under Snap and Flatpak are found. Each packaging confines
   Firefox to its own profile directory, and Ubuntu has shipped it as a snap
   since 22.04 -- so `~/.mozilla` is empty on the commonest desktop there is, and

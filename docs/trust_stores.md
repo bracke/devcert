@@ -7,6 +7,11 @@ install them. It also reads -- `System_Anchors` and `System_Trusts` answer what
 this host already trusts, which is what a program verifying a chain itself
 needs and what devcert does not.
 
+That crate finds every store of each kind, which matters twice: Firefox is
+packaged three ways on Linux and each confines its profiles to its own
+directory, and a machine with two JDKs has two keystores. Installing into one
+and reporting success left the other untrusting.
+
 devcert's own environment variables are unchanged: `DEVCERT_LINUX_TRUST_DIR`,
 `DEVCERT_NSS_DB` and `DEVCERT_JAVA_KEYSTORE` are named to the crate at startup
 rather than read by it.
