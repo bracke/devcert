@@ -90,14 +90,26 @@ shell pipelines.
 
 ## Java
 
-Java trust stores are updated with `keytool`. By default devcert uses
-`keytool -cacerts` with the conventional `changeit` store password. Tests and
-custom deployments can set `DEVCERT_JAVA_KEYSTORE` to target a specific
-keystore file instead of the system `cacerts` store. Store updates require the
-appropriate store password and file permissions.
+Java trust stores are updated with `keytool`, with the conventional `changeit`
+store password.
 
-The Java adapter has been smoke-tested against a temporary keystore using
-`DEVCERT_JAVA_KEYSTORE`.
+Every keystore on the host, not one. A machine with two JDKs has two stores and
+an anchor in java-21's `cacerts` is not in java-17's, so acting on whichever
+`keytool` came first on PATH left the rest untrusting and said nothing about it.
+`/usr/lib/jvm/*`, `/usr/java/*`, macOS's `JavaVirtualMachines` and the Windows
+Java directories are searched, deduplicated by resolved path: on Debian
+`default-java`, `java-1.21.0-openjdk-amd64` and `java-21-openjdk-amd64` all
+resolve to `/etc/ssl/certs/java/cacerts`, which is one store and is reported
+once.
+
+`DEVCERT_JAVA_KEYSTORE` names one keystore instead, which is what a test with a
+disposable store wants.
+
+Unprivileged, the JDK's own keystore refuses -- it belongs to root on a system
+install -- and that is reported as `permission-required` with exit 7, naming the
+file, rather than as a broken store. Validated on this host and recorded in the
+`truststores` crate's `docs/platform_evidence.md`, together with a run against
+the JDK's own `cacerts` in a container.
 
 ## NSS
 
@@ -113,9 +125,17 @@ under
 
 ```text
 $HOME/.mozilla/firefox                                    (Linux)
+$HOME/snap/firefox/common/.mozilla/firefox                (Linux, snap)
+$HOME/.var/app/org.mozilla.firefox/.mozilla/firefox       (Linux, flatpak)
 $HOME/Library/Application Support/Firefox/Profiles        (macOS)
 %APPDATA%\Mozilla\Firefox\Profiles                        (Windows)
 ```
+
+All of them, not the first that exists. Each packaging confines Firefox to its
+own profile directory and a machine can have two, so installing into one leaves
+the other untrusting. Ubuntu has shipped Firefox as a snap since 22.04, which
+made `~/.mozilla` empty on the commonest Linux desktop there is: looking only
+there installed an anchor into nothing and reported success.
 
 Every database is reported separately, and the store counts as installed only
 when all of them took it. Removal stays fingerprint-authoritative per database:

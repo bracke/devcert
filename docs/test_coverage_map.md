@@ -68,13 +68,28 @@ key/certificate matching.
 
 ## Trust Stores
 
-Packages: `Devcert_Trust_Stores`, `Devcert.Trust_Stores*`.
+Packages: `Devcert_Trust_Stores` (a renaming of the `truststores` crate),
+`Devcert.Trust_Stores*`.
 
-Coverage: selection, aliases, aggregate states, and isolated Linux mutation.
+Coverage: selection, aliases, aggregate states, and isolated Linux mutation
+against real certificates -- the fixture used to be two lines of invented
+base64, which cryptolib's structure-aware decoder correctly refuses, so an
+anchor that matched compared as one that did not.
+
+Also covered: a store that refuses an unprivileged caller answers
+`permission-required` rather than `error`, and the state comes from the adapter
+rather than from a search through the message it wrote. That distinction is the
+whole of what a caller can act on, and every adapter has had it wrong once.
+The test uses a keystore nobody can create, so no real store is touched, and it
+stops rather than adapting when elevated -- otherwise it would install a
+development CA into the trust store of whoever ran the suite.
+
+What the suite cannot cover is a real store on a real host. Those runs are
+recorded in the `truststores` crate's `docs/platform_evidence.md`.
 
 ## Output
 
-Packages: `Devcert.Output*`, `Devcert_JSON`.
+Packages: `Devcert.Output*`, `Devcert_JSON`, `Devcert_Messages`.
 
 Coverage: JSON schema, escaping, field stability, plain/terminal routing, and
 ANSI exclusion.
@@ -85,6 +100,17 @@ Packages: `Devcert_Messages`, `Devcert.Locale`.
 
 Coverage: required IDs, locale precedence, catalog precedence, and malformed
 catalog fallback.
+
+Also covered, for the 34 translated languages: every translated key has an
+English original, and every one keeps the `{value}` argument the English carries
+-- a translation that dropped it would print a message with the filename missing
+and nothing would fail. And the text survives being printed: no doubled UTF-8
+lead byte reaches the output, which is what Alire's `-gnatW8` produced for every
+accented character until `devcert.gpr` set the binder's encoding.
+
+The locale-precedence test moves the process into another locale to prove the
+order, and puts it back: left in German, every assertion after it would compare
+a translation with the English it was written against.
 
 ## Filesystem Safety
 

@@ -39,6 +39,25 @@ The `tooling-tests` command is part of the Ada tooling executable and verifies
 project-specific release mechanics such as manifest pin stripping and staged
 manifest validation.
 
+## Publish order
+
+devcert is the last of five. Each crate depends on the ones above it, and Alire
+resolves a published crate against published dependencies, so publishing devcert
+first would publish something nobody can build:
+
+```text
+tarlib        (packaging tool only; no devcert dependency)
+hostkit       what differs because the host differs
+cryptolib     certificates, keys, PEM
+truststores   the trust stores a host keeps -- depends on hostkit and cryptolib
+devcert       depends on all but tarlib
+```
+
+The workspace builds through path pins, which hide this: everything resolves
+locally whatever order it is in. A published crate has no pins -- the release
+gate refuses a manifest that keeps them -- so the order only matters at the
+point where getting it wrong is hardest to undo.
+
 Release artifacts are staged below `dist/` and exclude local build products and
 local Alire state. `dist` writes a deterministic `SHA256SUMS` manifest for the
 staged source tree. Checksum generation is implemented in Ada and uses
