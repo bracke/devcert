@@ -142,43 +142,47 @@ jobs:
 
           echo
           echo "=== unprivileged install (expect permission-required, exit 7)"
-          # A hosted runner is elevated, so the ordinary case -- a user without
-          # administrative rights being refused by the machine store -- has to be
-          # arranged. runas /trustlevel would do it and does not work here: it
-          # needs the Secondary Logon service, which this image leaves stopped
-          # and which starting does not fix.
+          # A hosted runner is elevated, so a user being refused by the machine
+          # store has to be arranged. runas /trustlevel would do it and cannot
+          # here: it needs the Secondary Logon service, which this image leaves
+          # stopped and which starting does not fix.
           #
-          # The Task Scheduler is always running, and it starts a process as
-          # another account without Secondary Logon. So: a standard local user,
-          # a task that runs as them, and the output read back from a place that
-          # user can write.
-          PASS='Tr8st!Store#2026'
-          SHARE="C:\\truststore-denial"
+          # The Task Scheduler is always running and starts a process as another
+          # account without it. The command it runs goes in a .cmd file rather
+          # than in /tr: a quoted command line inside a quoted argument loses its
+          # quotes on the way through, and schtasks then reads cmd's /c as an
+          # option of its own. A path has no quotes to lose.
+          SHARE_W='C:\truststore-denial'
+          SHARE_U='/c/truststore-denial'
+          PASS='Tr8stStore2026x'
+
+          rm -rf "$SHARE_U"
+          mkdir -p "$SHARE_U"
+          {
+            echo "@echo off"
+            echo "$(cygpath -w "$PWD")\bin\devcert.exe --ca-root ${SHARE_W}\ca --plain install --trust-store system > ${SHARE_W}\out.txt 2>&1"
+            echo "echo exit=%ERRORLEVEL% >> ${SHARE_W}\out.txt"
+          } > "$SHARE_U/run.cmd"
+
           cmd //c "net user tsdenial ${PASS} /add" 2>&1 | tr -d '\r' | tail -1
-          cmd //c "mkdir ${SHARE}" 2>&1 | tr -d '\r' | tail -1
-          # The account must be able to read the build and write its answer.
-          cmd //c "icacls ${SHARE} /grant tsdenial:(OI)(CI)F" >/dev/null 2>&1
+          # The account has to read the build and write its answer.
+          cmd //c "icacls ${SHARE_W} /grant tsdenial:(OI)(CI)F" >/dev/null 2>&1
           cmd //c "icacls $(cygpath -w "$PWD") /grant tsdenial:(OI)(CI)RX" \
             >/dev/null 2>&1
 
-          EXE="$(cygpath -w "$PWD")\\bin\\devcert.exe"
-          INNER="${EXE} --ca-root ${SHARE}\\ca --plain install --trust-store system"
-          cmd //c "schtasks /create /tn tsdenial /f /sc once /st 23:59 \
-            /ru tsdenial /rp ${PASS} \
-            /tr \"cmd /c ${INNER} > ${SHARE}\\out.txt 2>&1 & echo exit=%ERRORLEVEL% >> ${SHARE}\\out.txt\"" \
+          cmd //c "schtasks /create /tn tsdenial /f /sc once /st 23:59 /ru tsdenial /rp ${PASS} /tr ${SHARE_W}\run.cmd" \
             2>&1 | tr -d '\r' | tail -2
           cmd //c "schtasks /run /tn tsdenial" 2>&1 | tr -d '\r' | tail -1
 
           for attempt in $(seq 1 30); do
-            if [ -s "/c/truststore-denial/out.txt" ] \
-              && grep -q "exit=" "/c/truststore-denial/out.txt"; then
+            if [ -s "$SHARE_U/out.txt" ] && grep -q "exit=" "$SHARE_U/out.txt"; then
               break
             fi
             sleep 2
           done
 
-          if [ -s "/c/truststore-denial/out.txt" ]; then
-            tr -d '\r' < "/c/truststore-denial/out.txt"
+          if [ -s "$SHARE_U/out.txt" ]; then
+            tr -d '\r' < "$SHARE_U/out.txt"
           else
             echo "::warning::the scheduled task produced no output; denial unexercised"
             cmd //c "schtasks /query /tn tsdenial /v /fo list" 2>&1 \
