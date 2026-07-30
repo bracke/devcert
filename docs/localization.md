@@ -31,7 +31,18 @@ Three things, none of which judges a translation:
   neighbouring locale and adjusting a few words leaves behind. All 33 identified
   as their own language, 31 of them at full confidence.
 
-Two caveats from that run. Bosnian scores 0.64 against Croatian and Serbian, and
+* **Terminology, against a reviewed corpus.** KDE's Kleopatra is a certificate
+  manager whose translations are reviewed by the people who speak the language,
+  so the word it uses for *certificate* is the word that community uses. In 29
+  of the 33 languages, ours is the same word (2026-07-30).
+
+  The four that are not are questions rather than errors. Belarusian cannot be
+  compared: KDE's own file is two thirds untranslated, 1226 empty strings of
+  1942. Albanian differs by one letter -- KDE writes `çertifikatë`, ours writes
+  `certifikatë`, and the second is the standard spelling, so a native speaker
+  should pick. Maltese and Serbian have no Kleopatra translation at all.
+
+Two caveats from the language run. Bosnian scores 0.64 against Croatian and Serbian, and
 shares 18 of its 25 strings with Croatian -- which is what those languages do,
 but it is where a reviewer should start. And the detector does not know Maltese
 at all, so `mt` is unverified by this method.
