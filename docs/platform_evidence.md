@@ -13,7 +13,7 @@ Summarised, as of 2026-07-29:
 | Linux system (`update-ca-certificates`, `update-ca-trust`) | yes |
 | NSS, including Firefox profiles | yes, on Linux |
 | macOS keychain | yes, macOS 14.8.7 |
-| Windows machine `Root` | yes, elevated only |
+| Windows machine `Root` | yes, and the refusal an ordinary user gets |
 | Java keystore | yes, both the configured and the JDK's own |
 
 Six features were found never to have worked in the course of those runs, each
@@ -26,9 +26,6 @@ verification.
 
 What devcert itself has not established, whatever the stores can do:
 
-* **The Windows denial path.** A hosted runner is elevated and the restricted
-  token will not start there, so `permission-required` and exit 7 on Windows
-  have never been produced by devcert. The store operations have.
 * **Firefox on macOS and Windows.** Profile discovery was validated on Linux;
   the profile root differs on the other two and only the Linux one has been
   walked.

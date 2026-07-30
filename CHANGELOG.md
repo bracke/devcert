@@ -35,6 +35,10 @@ Initial development release.
   been failing as though it needed privileges.
 * Removing a trust anchor that is not installed says so instead of reporting a
   removal that did not happen.
+* The Windows trust store's refusal of an ordinary user is exercised, not
+  assumed: `permission-required` and exit 7, from a local account holding one
+  privilege and no group memberships. It was the last reporting path in the
+  trust stores that had only ever been reasoned about.
 * Every Java keystore on the host is installed into, not whichever `keytool`
   came first on PATH. A machine with two JDKs has two stores, and an anchor in
   one is not in the other. Aliases are deduplicated by resolved path, so one
