@@ -116,13 +116,12 @@ jobs:
           # at the first non-zero exit is a transcript missing the evidence.
           set +e
           set -u
-          # Git-bash rewrites arguments that look like Unix paths, so /add
-          # arrives as C:/Program Files/Git/add and net user sees no password at
-          # all. Every /switch below is subject to it -- which is also what the
-          # runas /trustlevel attempt was hitting, four runs of concluding
-          # otherwise ago.
-          # And with the conversion off, cmd takes /c rather than //c: the
-          # doubled slash existed only to survive being converted.
+          # Git-bash rewrites a bare argument that looks like a Unix path, so
+          # /add would arrive as C:/Program Files/Git/add. It does not touch a
+          # quoted command line, which is what every cmd call below passes -- so
+          # this is belt and braces rather than the fix it was first taken for.
+          # With it set, cmd takes /c rather than //c: the doubled slash existed
+          # only to survive being converted.
           export MSYS_NO_PATHCONV=1
           export MSYS2_ARG_CONV_EXCL='*'
           LOG=windows-trust-transcript.txt
@@ -163,7 +162,11 @@ jobs:
           # option of its own. A path has no quotes to lose.
           SHARE_W='C:\truststore-denial'
           SHARE_U='/c/truststore-denial'
-          PASS='Tr8stStore2026x'
+          # Fourteen characters at most: net user asks "the password entered
+          # is longer than 14 characters, continue?" and a step with no console
+          # cannot answer, which is the "No valid response was provided." that
+          # three runs of this workflow reported.
+          PASS='Tr8stSt0re26x'
 
           rm -rf "$SHARE_U"
           mkdir -p "$SHARE_U"
