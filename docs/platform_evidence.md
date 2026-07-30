@@ -15,7 +15,7 @@ Summarised, as of 2026-07-29:
 | Linux system under SELinux enforcing | yes, Fedora 44 VM, `update-ca-trust` |
 | NSS, including Firefox profiles | yes, on Linux |
 | NSS in a Flatpak Firefox profile | yes, Flathub Firefox 153 on this host |
-| NSS in a snap-confined Firefox profile | yes, Ubuntu 24.04 VM, Firefox snap 153, browser accepted it |
+| NSS in a snap-confined Firefox profile | yes, Ubuntu 24.04 VM, Firefox snap 153 |
 | macOS keychain | yes, macOS 14.8.7 |
 | Windows machine `Root` | yes, and the refusal an ordinary user gets |
 | Java keystore | yes, both the configured and the JDK's own |
