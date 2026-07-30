@@ -31,16 +31,34 @@ Three things, none of which judges a translation:
   neighbouring locale and adjusting a few words leaves behind. All 33 identified
   as their own language, 31 of them at full confidence.
 
-* **Terminology, against a reviewed corpus.** KDE's Kleopatra is a certificate
-  manager whose translations are reviewed by the people who speak the language,
-  so the word it uses for *certificate* is the word that community uses. In 29
-  of the 33 languages, ours is the same word (2026-07-30).
+* **Terminology, against reviewed corpora.** Firefox and KDE's Kleopatra are
+  translated by the communities that use them, so the word they use for
+  *certificate* is the word those communities use. Firefox is the better
+  comparison of the two: it covers more of these languages, its certificate
+  viewer has an identifier whose English is exactly `Certificate` rather than a
+  word to be inferred from a sentence, and it is the browser that will accept or
+  reject what devcert issues -- so its vocabulary is the one the user has
+  already read. Ours matches it in 27 of the 33 languages, and matches KDE in 29
+  of 33 (2026-07-30).
 
-  The four that are not are questions rather than errors. Belarusian cannot be
-  compared: KDE's own file is two thirds untranslated, 1226 empty strings of
-  1942. Albanian differs by one letter -- KDE writes `çertifikatë`, ours writes
-  `certifikatë`, and the second is the standard spelling, so a native speaker
-  should pick. Maltese and Serbian have no Kleopatra translation at all.
+  Three disagree, and none is settled by a tool:
+
+  | | devcert | Firefox | Kleopatra |
+  | --- | --- | --- | --- |
+  | Icelandic | `vottorð` | `Skilríki` | -- |
+  | Lithuanian | `sertifikatas` | `Liudijimas` | -- |
+  | Albanian | `certifikatë` | `Dëshmi` | `çertifikatë` |
+
+  Albanian has three different words across three sources. The argument for
+  taking the browser's word in each case is that the user meets it there; the
+  argument against is that one project's choice is not a language's consensus.
+  A speaker decides.
+
+  Neither corpus reaches Maltese: Firefox has no `mt` locale, Kleopatra has no
+  Maltese translation, the detector below does not know the language, and no
+  spelling dictionary for it is installed here. It is the one locale nothing has
+  checked. Irish and Latvian have Firefox files in which that string is left
+  untranslated, so they were compared against KDE only.
 
 Two caveats from the language run. Bosnian scores 0.64 against Croatian and Serbian, and
 shares 18 of its 25 strings with Croatian -- which is what those languages do,
