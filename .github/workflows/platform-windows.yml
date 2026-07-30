@@ -178,11 +178,30 @@ jobs:
 
           cmd /c "net user tsdenial ${PASS} /add" 2>&1 | tr -d '\r' | tail -1
           # A task will not start for an account without "log on as a batch
-          # job". Performance Log Users holds that right by default and holds
-          # nothing else that matters here -- it cannot write a certificate
-          # store, which is the whole point of running as this account.
-          cmd /c "net localgroup \"Performance Log Users\" tsdenial /add" \
+          # job", and group membership did not carry it: the right is granted
+          # here, to this account, and to nothing else. It is the only privilege
+          # the account gets -- it still cannot write a certificate store, which
+          # is what it exists to be refused by.
+          cmd /c "secedit /export /areas USER_RIGHTS /cfg ${SHARE_W}\\sec.inf /quiet" \
             2>&1 | tr -d '\r' | tail -1
+          if [ -f "$SHARE_U/sec.inf" ]; then
+            # secedit writes UTF-16; sed does not read it.
+            iconv -f UTF-16LE -t UTF-8 "$SHARE_U/sec.inf" > "$SHARE_U/sec.txt" \
+              || cp "$SHARE_U/sec.inf" "$SHARE_U/sec.txt"
+            if grep -q "^SeBatchLogonRight" "$SHARE_U/sec.txt"; then
+              sed -i 's/^SeBatchLogonRight = .*/&,tsdenial/' "$SHARE_U/sec.txt"
+            else
+              sed -i 's/^\[Privilege Rights\]/&\nSeBatchLogonRight = tsdenial/' \
+                "$SHARE_U/sec.txt"
+            fi
+            grep "^SeBatchLogonRight" "$SHARE_U/sec.txt" | cut -c1-90
+            iconv -f UTF-8 -t UTF-16LE "$SHARE_U/sec.txt" > "$SHARE_U/sec2.inf" \
+              || cp "$SHARE_U/sec.txt" "$SHARE_U/sec2.inf"
+            cmd /c "secedit /configure /db ${SHARE_W}\\sec.sdb /cfg ${SHARE_W}\\sec2.inf /areas USER_RIGHTS /quiet" \
+              2>&1 | tr -d '\r' | tail -2
+          else
+            echo "secedit exported nothing; the account will have no batch right"
+          fi
           # The account has to read the build and write its answer.
           cmd /c "icacls ${SHARE_W} /grant tsdenial:(OI)(CI)F" >/dev/null 2>&1
           cmd /c "icacls $(cygpath -w "$PWD") /grant tsdenial:(OI)(CI)RX" \
