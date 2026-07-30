@@ -13,6 +13,7 @@ Summarised, as of 2026-07-29:
 | Linux system (`update-ca-certificates`, `update-ca-trust`) | yes |
 | Linux system (`trust anchor`) | yes, Ubuntu 24.04 with p11-kit and no `ca-certificates` |
 | NSS, including Firefox profiles | yes, on Linux |
+| NSS in a Flatpak Firefox profile | yes, Flathub Firefox 153 on this host |
 | macOS keychain | yes, macOS 14.8.7 |
 | Windows machine `Root` | yes, and the refusal an ordinary user gets |
 | Java keystore | yes, both the configured and the JDK's own |
@@ -35,6 +36,16 @@ anything. Both now ask p11-kit, which answers on that host whatever the exit
 code says, and the store decides. This is the same lesson as the other six: the
 tool's word is not the store's state.
 
+An eighth came out of the Flatpak run. devcert searched
+`~/.var/app/org.mozilla.firefox/.mozilla/firefox`; the Flathub Firefox keeps its
+profiles under `config/mozilla/firefox`, because a flatpak hands the application
+its own `XDG_CONFIG_HOME` and Firefox 153 writes there rather than into the
+`~/.mozilla` the sandbox also offers it. The searched directory did not exist at
+all, so a Flatpak Firefox was invisible and an anchor meant for it went nowhere
+-- which is the failure the snap path had been added to fix, one directory over.
+Validated against a profile Flathub Firefox created, with `certutil` reading the
+database afterwards: installed into both profiles, then removed from both.
+
 ## Not Validated
 
 What devcert itself has not established, whatever the stores can do:
@@ -42,10 +53,12 @@ What devcert itself has not established, whatever the stores can do:
 * **Firefox on macOS and Windows.** Profile discovery was validated on Linux;
   the profile root differs on the other two and only the Linux one has been
   walked.
-* **Firefox under Snap or Flatpak.** Both roots are searched now, and the suite
-  proves the snap path is found by relocating the home directory -- but no run
-  has installed an anchor into a real snap-confined profile and watched Firefox
-  accept it.
+* **Firefox under Snap.** The snap root is searched and the suite proves it is
+  found by relocating the home directory, but no run has installed an anchor
+  into a real snap-confined profile: there is no `snapd` on the host this was
+  worked on. The Flatpak case, which was the same entry until it was tried, is
+  validated above -- and the path it was searching turned out to be the wrong
+  one, so the snap path deserves the same suspicion until something runs it.
 * **SELinux enforcing.** The Fedora container ran permissive; enforcing needs a
   virtual machine, because a container shares the host kernel and this host runs
   AppArmor.
