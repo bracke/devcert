@@ -130,8 +130,7 @@ jobs:
         run: |
           alr --non-interactive build
           ./bin/catalog_check ../../../devcert/share/devcert/messages.catalog \
-            --verbatim=devcert,install,uninstall,caroot,cert,inspect,doctor,help,version,--help,--version,--json,--plain,--csr,--ca-root,--catalog,--color,--locale,PKCS#12 \
-            --locale-only=meta.
+            --verbatim=devcert,install,uninstall,caroot,cert,inspect,doctor,help,version,--help,--version,--json,--plain,--csr,--ca-root,--catalog,--color,--locale,PKCS#12
 
       - name: Point the runtime at the bundled i18n data (Windows)
         if: runner.os == 'Windows'
