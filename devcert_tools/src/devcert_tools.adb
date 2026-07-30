@@ -17,6 +17,7 @@ with Project_Tools.Alire_Manifests;
 with Project_Tools.Files;
 with Project_Tools.Processes;
 with Project_Tools.Release_Checks;
+with Messages.Consistency;
 with Project_Tools.Text;
 with Project_Tools.Tree_Checks;
 
@@ -501,7 +502,8 @@ procedure Devcert_Tools is
          Project_Root & "/devcert_tools/alire.toml",
          [To_Unbounded_String ("project_tools"),
           To_Unbounded_String ("cryptolib"),
-          To_Unbounded_String ("hostkit")],
+          To_Unbounded_String ("hostkit"),
+          To_Unbounded_String ("messages")],
          "tooling manifest");
       Require_Workspace_Pin
         (Project_Root & "/devcert_tools/alire.toml",
@@ -803,13 +805,12 @@ procedure Devcert_Tools is
 
       --  What a translation must keep, whatever language it is in.
       --
-      --  None of this judges a translation -- that needs a native speaker, and
-      --  the catalogue says so. It catches what does not: a command name or an
-      --  option that has been translated is a word the program does not accept,
-      --  and a user who types what they were shown gets an error.
-      procedure Require_Verbatim_Tokens is
-         File   : File_Type;
-         Tokens : constant array (1 .. 9) of Unbounded_String :=
+      --  The rules live in Messages.Consistency, with the catalogue format, so
+      --  every application that ships one gets them. What belongs here is the
+      --  list of words devcert's users type: this crate knows which those are
+      --  and the messages crate has no business guessing.
+      procedure Require_Consistent_Translations is
+         Tokens : constant Messages.Consistency.Token_Array :=
            [To_Unbounded_String ("--help"),
             To_Unbounded_String ("--version"),
             To_Unbounded_String ("--json"),
@@ -818,85 +819,33 @@ procedure Devcert_Tools is
             To_Unbounded_String ("--csr"),
             To_Unbounded_String ("PKCS#12"),
             To_Unbounded_String ("CSR"),
-            To_Unbounded_String ("devcert")];
-
-         --  The English lines, read once and kept. Re-opening the catalogue
-         --  per key while it is already open reads as though it works and
-         --  quietly answers nothing, which turns every check below into a pass.
-         English : Unbounded_String;
-
-         function English_For (Key : String) return String is
-            Text  : constant String := To_String (English);
-            Mark  : constant String := ASCII.LF & "en." & Key & " = ";
-            Start : constant Natural := Ada.Strings.Fixed.Index (Text, Mark);
-            Stop  : Natural;
-         begin
-            if Start = 0 then
-               return "";
-            end if;
-            Stop := Ada.Strings.Fixed.Index
-                      (Text (Start + 1 .. Text'Last), "" & ASCII.LF);
-            return (if Stop = 0 then Text (Start + 1 .. Text'Last)
-                    else Text (Start + 1 .. Stop - 1));
-         end English_For;
+            To_Unbounded_String ("devcert"),
+            To_Unbounded_String ("help"),
+            To_Unbounded_String ("version"),
+            To_Unbounded_String ("install"),
+            To_Unbounded_String ("uninstall"),
+            To_Unbounded_String ("caroot"),
+            To_Unbounded_String ("cert"),
+            To_Unbounded_String ("inspect"),
+            To_Unbounded_String ("doctor")];
+         Findings : Messages.Consistency.Report;
       begin
-         Open (File, In_File, Source_Path);
-         Append (English, ASCII.LF);
-         while not End_Of_File (File) loop
-            declare
-               Line : constant String := Get_Line (File);
-            begin
-               if Project_Tools.Text.Starts_With (Line, "en.") then
-                  Append (English, Line & ASCII.LF);
-               end if;
-            end;
-         end loop;
-         Close (File);
+         Messages.Consistency.Check_File (Source_Path, Tokens, Findings);
 
-         Open (File, In_File, Source_Path);
-         while not End_Of_File (File) loop
-            declare
-               Line  : constant String := Get_Line (File);
-               Dot   : constant Natural := Ada.Strings.Fixed.Index (Line, ".");
-               Space : constant Natural := Ada.Strings.Fixed.Index (Line, " = ");
-            begin
-               if Dot > 1 and then Space > Dot
-                 and then not Project_Tools.Text.Starts_With (Line, "en.")
-                 and then not Project_Tools.Text.Starts_With (Line, "default_")
-               then
-                  declare
-                     Key     : constant String := Line (Dot + 1 .. Space - 1);
-                     Source  : constant String := English_For (Key);
-                  begin
-                     for Token of Tokens loop
-                        declare
-                           Text : constant String := To_String (Token);
-                        begin
-                           if Source /= ""
-                             and then Project_Tools.Text.Contains (Source, Text)
-                             and then not Project_Tools.Text.Contains (Line, Text)
-                           then
-                              Fail
-                                (State,
-                                 Source_Path,
-                                 Line (Line'First .. Space - 1)
-                                 & " drops " & Text
-                                 & ", which a user types");
-                           end if;
-                        end;
-                     end loop;
-                  end;
-               end if;
-            end;
+         for Index in 1 .. Findings.Count loop
+            Fail
+              (State,
+               Source_Path,
+               Messages.Consistency.Image (Findings.Items (Index)));
          end loop;
-         Close (File);
-      exception
-         when E : others =>
-            if Is_Open (File) then
-               Close (File);
-            end if;
-            Fail (State, Source_Path, Ada.Exceptions.Exception_Message (E));
-      end Require_Verbatim_Tokens;
+
+         if Findings.Overflow then
+            Fail
+              (State,
+               Source_Path,
+               "more translation findings than the report holds");
+         end if;
+      end Require_Consistent_Translations;
 
       procedure Require_Id (Id : String) is
       begin
@@ -915,7 +864,7 @@ procedure Devcert_Tools is
       Require_Id ("error.unknown_command");
       Require_Id ("json.schema");
       Require_Id ("release.passed");
-      Require_Verbatim_Tokens;
+      Require_Consistent_Translations;
       Require_Success (State, "catalog-check");
       Put_Line ("catalog-check passed");
    end Run_Catalog_Check;

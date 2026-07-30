@@ -24,7 +24,12 @@ Three things, none of which judges a translation:
   `devcert_tools catalog-check`.
 * **Verbatim tokens.** A command name, an option, `PKCS#12`, `CSR` or `devcert`
   itself must survive translation: they are what a user types, and a translated
-  `--color` is a word the program rejects. Also enforced by `catalog-check`.
+  `--color` is a word the program rejects. Matched as whole words, because the
+  German for `install` is `installieren`, which contains it and is not it.
+
+The rules themselves live in `Messages.Consistency`, with the catalogue format,
+so any application that ships a catalogue gets them; what stays here is the list
+of words devcert's users type. `catalog-check` runs them.
 * **Language identification.** Each locale's text was put to a detector
   (`lingua`, 2026-07-30) to catch the error no structural rule can see -- fluent
   text, correctly placeheld, in the wrong language, which is what copying a
