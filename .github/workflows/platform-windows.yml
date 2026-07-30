@@ -142,34 +142,51 @@ jobs:
 
           echo
           echo "=== unprivileged install (expect permission-required, exit 7)"
-          # runas /trustlevel:0x20000 drops to a restricted token without needing
-          # another account or a password. It does not wait, so the child writes
-          # its own exit status and this waits for that.
-          # runas needs the Secondary Logon service, which a server image may
-          # leave disabled. Ask, and say so, rather than reading exit 1 as a
-          # verdict about devcert.
-          echo "seclogon: $(cmd //c "sc query seclogon" 2>&1 | tr -d '\r' \
-            | grep -i "STATE" || echo "not queryable")"
-          cmd //c "sc start seclogon" 2>&1 | tr -d '\r' | head -3
-          rm -rf "$RUNNER_TEMP/devcert-unelevated" unelevated.txt
-          UNPRIV_ROOT="$(cygpath -w "$RUNNER_TEMP")\\devcert-unelevated"
-          INNER="bin\\devcert.exe --ca-root ${UNPRIV_ROOT}"
-          INNER="${INNER} --plain install --trust-store system"
-          INNER="${INNER} > unelevated.txt 2>&1"
-          INNER="${INNER} & echo exit=%ERRORLEVEL% >> unelevated.txt"
-          cmd //c "runas /trustlevel:0x20000 \"cmd /c ${INNER}\"" 2>&1
-          RUNAS_STATUS=$?
+          # A hosted runner is elevated, so the ordinary case -- a user without
+          # administrative rights being refused by the machine store -- has to be
+          # arranged. runas /trustlevel would do it and does not work here: it
+          # needs the Secondary Logon service, which this image leaves stopped
+          # and which starting does not fix.
+          #
+          # The Task Scheduler is always running, and it starts a process as
+          # another account without Secondary Logon. So: a standard local user,
+          # a task that runs as them, and the output read back from a place that
+          # user can write.
+          PASS='Tr8st!Store#2026'
+          SHARE="C:\\truststore-denial"
+          cmd //c "net user tsdenial ${PASS} /add" 2>&1 | tr -d '\r' | tail -1
+          cmd //c "mkdir ${SHARE}" 2>&1 | tr -d '\r' | tail -1
+          # The account must be able to read the build and write its answer.
+          cmd //c "icacls ${SHARE} /grant tsdenial:(OI)(CI)F" >/dev/null 2>&1
+          cmd //c "icacls $(cygpath -w "$PWD") /grant tsdenial:(OI)(CI)RX" \
+            >/dev/null 2>&1
+
+          EXE="$(cygpath -w "$PWD")\\bin\\devcert.exe"
+          INNER="${EXE} --ca-root ${SHARE}\\ca --plain install --trust-store system"
+          cmd //c "schtasks /create /tn tsdenial /f /sc once /st 23:59 \
+            /ru tsdenial /rp ${PASS} \
+            /tr \"cmd /c ${INNER} > ${SHARE}\\out.txt 2>&1 & echo exit=%ERRORLEVEL% >> ${SHARE}\\out.txt\"" \
+            2>&1 | tr -d '\r' | tail -2
+          cmd //c "schtasks /run /tn tsdenial" 2>&1 | tr -d '\r' | tail -1
+
           for attempt in $(seq 1 30); do
-            if [ -s unelevated.txt ] && grep -q "exit=" unelevated.txt; then break; fi
+            if [ -s "/c/truststore-denial/out.txt" ] \
+              && grep -q "exit=" "/c/truststore-denial/out.txt"; then
+              break
+            fi
             sleep 2
           done
-          if [ -s unelevated.txt ]; then
-            cat unelevated.txt
+
+          if [ -s "/c/truststore-denial/out.txt" ]; then
+            tr -d '\r' < "/c/truststore-denial/out.txt"
           else
-            echo "no output from the restricted-token run"
-            echo "runas exit was ${RUNAS_STATUS}; the token drop is what to doubt"
-            echo "::warning::restricted-token run produced no output; denial unexercised"
+            echo "::warning::the scheduled task produced no output; denial unexercised"
+            cmd //c "schtasks /query /tn tsdenial /v /fo list" 2>&1 \
+              | tr -d '\r' | grep -iE "last run|last result|status" | head -4
           fi
+
+          cmd //c "schtasks /delete /tn tsdenial /f" >/dev/null 2>&1
+          cmd //c "net user tsdenial /delete" >/dev/null 2>&1
 
           echo
           echo "=== elevated: the whole check in one pass"
