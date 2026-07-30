@@ -309,3 +309,107 @@ jobs:
           path: devcert/windows-trust-transcript.txt
           if-no-files-found: warn
           retention-days: 30
+
+  # Firefox on Windows keeps its profiles under %APPDATA%\Mozilla\Firefox\
+  # Profiles, and devcert has never walked a real one. The interesting part is
+  # not the path but the tool: Windows ships its own certutil.exe in System32,
+  # a different program from NSS's certutil of the same name, and this library
+  # asks Locate ("certutil") for both stores. For the machine Root store that
+  # is the right program. For NSS it is not, and nothing tells them apart.
+  #
+  # This job is a diagnosis, not a gate. It reports what devcert finds and what
+  # it says about a Firefox that is really there; the reading goes in
+  # docs/platform_evidence.md.
+  windows-firefox:
+    name: windows firefox NSS profile
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with: { path: devcert }
+      - name: Check out sibling crates (transitive pin closure)
+        uses: bracke/project_tools/.github/actions/checkout-ada-siblings@main
+        with:
+          root: devcert
+
+      - name: Install system libraries
+        shell: bash
+        run: |
+          pacman() { /c/msys64/usr/bin/pacman "$@"; }
+          pacman-key() { /c/msys64/usr/bin/pacman-key "$@"; }
+          pacman-key --init || true
+          pacman-key --populate msys2 || true
+          for attempt in 1 2 3; do
+            pacman -Sy --noconfirm --needed --disable-download-timeout \
+              mingw-w64-x86_64-openssl && break
+            sleep 15
+          done
+          echo "CPATH=C:/msys64/mingw64/include" >> "$GITHUB_ENV"
+          echo "LIBRARY_PATH=C:/msys64/mingw64/lib" >> "$GITHUB_ENV"
+          echo "C:\msys64\mingw64\bin" >> "$GITHUB_PATH"
+
+      - name: Set up Alire
+        uses: alire-project/setup-alire@v6
+        with:
+          toolchain: gnat_native=15.2.1 gprbuild
+
+      - name: Raise Alire solver timeout
+        shell: bash
+        run: alr settings --global --set solver.timeout 600
+
+      - name: Build devcert
+        shell: bash
+        working-directory: devcert
+        run: alr --non-interactive build
+
+      - name: Point the runtime at the bundled i18n data
+        shell: bash
+        working-directory: devcert
+        run: |
+          SRC="$(cd share/i18n && pwd)"
+          echo "I18N_DATA_DIR=$(cygpath -m "$SRC")" >> "$GITHUB_ENV"
+
+      - name: Install Firefox and give it a profile
+        shell: bash
+        # A profile has to exist before there is an NSS database to find, and
+        # Firefox only writes cert9.db once it has actually started.
+        run: |
+          choco install firefox -y --no-progress >/dev/null 2>&1 || true
+          FF="/c/Program Files/Mozilla Firefox/firefox.exe"
+          [ -x "$FF" ] || { echo "::error::Firefox did not install"; exit 1; }
+          "$FF" --headless --screenshot "$USERPROFILE/shot.png" about:blank >/dev/null 2>&1 || true
+          sleep 10
+          echo "--- profiles found:"
+          find "$APPDATA/Mozilla/Firefox" -name cert9.db 2>/dev/null || echo "  none"
+
+      - name: Which certutil is on PATH, and what does devcert make of it
+        id: firefox
+        shell: bash
+        working-directory: devcert
+        run: |
+          exec > >(tee windows-firefox-transcript.txt) 2>&1
+          echo "=== every certutil on PATH"
+          where certutil || true
+          echo
+          echo "=== is that NSS's certutil or Microsoft's?"
+          certutil -? 2>&1 | head -3 || true
+          echo
+          echo "=== Firefox profiles devcert can see"
+          find "$APPDATA/Mozilla/Firefox" -name cert9.db 2>/dev/null || echo "  none"
+          echo
+          echo "=== devcert install --trust-store nss"
+          DEVCERT_LOCALE=en ./bin/devcert install --trust-store nss
+          echo "exit=$?"
+          echo
+          echo "=== devcert uninstall --trust-store nss"
+          DEVCERT_LOCALE=en ./bin/devcert uninstall --trust-store nss
+          echo "exit=$?"
+
+      - name: Keep the transcript
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-firefox-transcript
+          path: devcert/windows-firefox-transcript.txt
+          if-no-files-found: warn
+          retention-days: 30

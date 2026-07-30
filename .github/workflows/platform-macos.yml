@@ -1,0 +1,107 @@
+name: platform-macos
+
+# Validates Firefox profile discovery on macOS against a real profile.
+#
+# Manual trigger only, like platform-windows. This one installs a browser and
+# writes into its certificate database, and nothing that mutates a machine's
+# trust should fire because somebody committed. The runner is a disposable
+# virtual machine, which is what docs/platform_validation.md asks for.
+#
+# macOS keeps Firefox profiles under ~/Library/Application Support/Firefox/
+# Profiles -- a path with a space in it, which is the part that has only ever
+# been exercised against a staged directory. Unlike Windows there is no name
+# collision here: macOS ships no certutil, so the one Homebrew's nss installs
+# is the only one Locate can find.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  macos-firefox:
+    name: macos firefox NSS profile
+    # gnat_native 15.2.1 has no aarch64-darwin build, so this is the x86_64
+    # image, as in ci.yml.
+    runs-on: macos-15-intel
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with: { path: devcert }
+      - name: Check out sibling crates (transitive pin closure)
+        uses: bracke/project_tools/.github/actions/checkout-ada-siblings@main
+        with:
+          root: devcert
+
+      - name: Install system libraries
+        run: |
+          brew update || echo "::warning::brew update failed; using the existing index"
+          brew list openssl@3 >/dev/null 2>&1 || brew install openssl@3
+          echo "LIBRARY_PATH=$(brew --prefix openssl@3)/lib" >> "$GITHUB_ENV"
+
+      - name: Set up Alire
+        uses: alire-project/setup-alire@v6
+        with:
+          toolchain: gnat_native=15.2.1 gprbuild
+
+      - name: Raise Alire solver timeout
+        run: alr settings --global --set solver.timeout 600
+
+      - name: Build devcert
+        working-directory: devcert
+        run: alr --non-interactive build
+
+      - name: Install Firefox and NSS, and give Firefox a profile
+        # nss is what puts certutil on PATH: devcert needs it to touch an NSS
+        # database at all, and this job needs it to check the answer
+        # independently afterwards. A profile has to exist before there is a
+        # database to find, and Firefox only writes cert9.db once it has run.
+        run: |
+          brew install --cask firefox
+          brew install nss
+          echo "$(brew --prefix nss)/bin" >> "$GITHUB_PATH"
+          FF="/Applications/Firefox.app/Contents/MacOS/firefox"
+          [ -x "$FF" ] || { echo "::error::Firefox did not install"; exit 1; }
+          "$FF" --headless --screenshot "$HOME/shot.png" about:blank >/dev/null 2>&1 || true
+          sleep 10
+          find "$HOME/Library/Application Support/Firefox" -name cert9.db 2>/dev/null \
+            || echo "no cert9.db yet"
+
+      - name: Install into the Firefox profile and verify it independently
+        shell: bash
+        working-directory: devcert
+        run: |
+          exec > >(tee macos-firefox-transcript.txt) 2>&1
+          echo "=== certutil on PATH"
+          command -v certutil || echo "  none"
+          echo
+          P="$(dirname "$(find "$HOME/Library/Application Support/Firefox" -name cert9.db | head -1)")"
+          echo "=== profile: $P"
+          echo "  devcert entries before: $(certutil -d "sql:$P" -L 2>/dev/null | grep -c devcert)"
+          echo
+          echo "=== devcert install --trust-store nss"
+          DEVCERT_LOCALE=en ./bin/devcert install --trust-store nss
+          echo "exit=$?"
+          AFTER="$(certutil -d "sql:$P" -L 2>/dev/null | grep -c devcert)"
+          echo "  devcert entries after: $AFTER"
+          echo
+          echo "=== devcert uninstall --trust-store nss"
+          DEVCERT_LOCALE=en ./bin/devcert uninstall --trust-store nss
+          echo "exit=$?"
+          GONE="$(certutil -d "sql:$P" -L 2>/dev/null | grep -c devcert)"
+          echo "  devcert entries after removal: $GONE"
+          echo
+          #  Asked of the database rather than of devcert's own output, so the
+          #  answer does not come from the thing under test.
+          if [ "$AFTER" != "1" ] || [ "$GONE" != "0" ]; then
+            echo "::error::certutil disagrees: $AFTER after install, $GONE after removal"
+            exit 1
+          fi
+          echo "certutil agrees: installed then removed"
+
+      - name: Keep the transcript
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-firefox-transcript
+          path: devcert/macos-firefox-transcript.txt
+          if-no-files-found: warn
+          retention-days: 30
