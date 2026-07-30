@@ -63,12 +63,25 @@ and exit 7 on every platform, a store whose tool is absent answers
 
 ## Linux
 
-Supported mechanisms include distribution system CA stores where available.
-On systems with `update-ca-certificates`, installation writes a fingerprinted
-certificate file below `/usr/local/share/ca-certificates/` and runs
-`update-ca-certificates --fresh`. Removal deletes the matching fingerprinted
-file and reruns the update command. Privilege escalation is expected when
-writing to system trust locations.
+Three backends, chosen by which tool the host has, in this order:
+`update-ca-certificates` (Debian, Ubuntu), `update-ca-trust` (Fedora, RHEL,
+Arch), then `trust` from p11-kit where neither script exists.
+
+The first two write a fingerprinted certificate file below
+`/usr/local/share/ca-certificates/` or `/etc/pki/ca-trust/source/anchors/` and
+run the refresh command; removal deletes the matching file and reruns it. The
+third runs `trust anchor` and `trust anchor --remove`, and does not trust their
+exit status: p11-kit stores the anchor and then runs a compat extractor that
+Debian and Ubuntu package nowhere, so `trust` exits 2 having done the work.
+devcert asks the store instead, and the store decides.
+
+Reading the host's anchors follows the same shape. The bundle file is read where
+there is one -- and where it holds nothing, which is what a host with p11-kit
+and no `ca-certificates` has, p11-kit is asked directly. Ubuntu ships
+`/etc/ssl/certs/ca-certificates.crt` as a zero-length file, so testing that the
+path exists reads such a host as trusting nothing at all.
+
+Privilege escalation is expected when writing to system trust locations.
 
 For deterministic integration tests, `DEVCERT_LINUX_TRUST_DIR` selects an
 isolated anchor directory backend. In that mode devcert stages
@@ -124,11 +137,12 @@ them: the shared database, plus each profile directory holding a `cert9.db`
 under
 
 ```text
-$HOME/.mozilla/firefox                                    (Linux)
-$HOME/snap/firefox/common/.mozilla/firefox                (Linux, snap)
-$HOME/.var/app/org.mozilla.firefox/.mozilla/firefox       (Linux, flatpak)
-$HOME/Library/Application Support/Firefox/Profiles        (macOS)
-%APPDATA%\Mozilla\Firefox\Profiles                        (Windows)
+$HOME/.mozilla/firefox                                     (Linux)
+$HOME/snap/firefox/common/.mozilla/firefox                 (Linux, snap)
+$HOME/.var/app/org.mozilla.firefox/.mozilla/firefox        (Linux, flatpak)
+$HOME/.var/app/org.mozilla.firefox/config/mozilla/firefox  (Linux, flatpak)
+$HOME/Library/Application Support/Firefox/Profiles         (macOS)
+%APPDATA%\Mozilla\Firefox\Profiles                         (Windows)
 ```
 
 All of them, not the first that exists. Each packaging confines Firefox to its
@@ -136,6 +150,12 @@ own profile directory and a machine can have two, so installing into one leaves
 the other untrusting. Ubuntu has shipped Firefox as a snap since 22.04, which
 made `~/.mozilla` empty on the commonest Linux desktop there is: looking only
 there installed an anchor into nothing and reported success.
+
+The two flatpak paths are both listed because which one a build uses is not
+guessable. A flatpak gives the application its own `XDG_CONFIG_HOME` and
+Firefox 153 writes profiles into it; a snap gives the application its own HOME
+and leaves `XDG_CONFIG_HOME` alone, so Firefox falls back to `~/.mozilla`
+inside it. Confinement is not what decides the layout.
 
 Every database is reported separately, and the store counts as installed only
 when all of them took it. Removal stays fingerprint-authoritative per database:
@@ -154,8 +174,18 @@ fingerprint rather than with a subject or nickname.
 
 ## macOS and Windows
 
-macOS uses the `security` command when available. Windows uses `certutil` when
-available. Both adapters use fingerprint-derived operations and report missing
+macOS uses the `security` command when available. Windows uses `certutil` for
+the machine `Root` store -- Microsoft's `certutil.exe`, which ships in
+`System32`.
+
+That name is shared. NSS's `certutil` is a different program, and on Windows
+the one `PATH` finds first is Microsoft's, so asking whether `certutil` exists
+answers yes on every Windows and says nothing about NSS. The NSS adapter asks
+which program answered -- NSS's prints help mentioning `certdir` -- and walks
+the rest of `PATH` when the first is not NSS's, because a host with NSS
+installed and its directory appended has both, Microsoft's in front. Where
+there is no NSS `certutil` the answer is `tool-missing`, not a failed
+install. Both adapters use fingerprint-derived operations and report missing
 platform tools explicitly. They are implemented as live command adapters, but
 require their native operating systems for end-to-end mutation tests.
 

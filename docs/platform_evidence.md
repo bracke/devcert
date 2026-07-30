@@ -71,5 +71,5 @@ problem: the runner found the profile under
 
 What devcert itself has not established, whatever the stores can do:
 
-* **The 34 message translations.** Written for this catalogue and reviewed by no
+* **The 33 message translations.** Written for this catalogue and reviewed by no
   native speaker.
