@@ -117,6 +117,22 @@ jobs:
         working-directory: devcert
         run: test -f share/i18n/formats.i18ndata
 
+      # A catalogue can be well-formed and still have drifted from the messages
+      # it translates: a key with no original, an argument dropped so the text
+      # renders without the value it was about, a command name translated into
+      # a word devcert rejects, a run of the English left inside a translation.
+      # The rule lives with the catalogue format, in the messages crate. Linux
+      # only -- the catalogue is the same file on every platform.
+      - name: Check the message catalogue
+        if: runner.os == 'Linux'
+        shell: bash
+        working-directory: messages/tools/catalog_check
+        run: |
+          alr --non-interactive build
+          ./bin/catalog_check ../../../devcert/share/devcert/messages.catalog \
+            --verbatim=devcert,install,uninstall,caroot,cert,inspect,doctor,help,version,--help,--version,--json,--plain,--csr,--ca-root,--catalog,--color,--locale,PKCS#12 \
+            --locale-only=meta.
+
       - name: Point the runtime at the bundled i18n data (Windows)
         if: runner.os == 'Windows'
         shell: bash
