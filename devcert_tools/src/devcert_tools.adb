@@ -388,12 +388,15 @@ procedure Devcert_Tools is
          Line_Number : Positive := 1;
       begin
          if Is_Source_File (Name) then
-            --  These three are read by name from outside this project -- by
+            --  These four are read by name from outside this project -- by
             --  people, by forges, by agent tooling -- so their spelling is not
-            --  ours to lower-case.
+            --  ours to lower-case. CLAUDE.md is the same case: Claude Code
+            --  looks for that exact name, and here it holds one line importing
+            --  AGENTS.md so there is still only one copy of the guidance.
             if Name /= "README.md"
               and then Name /= "CHANGELOG.md"
               and then Name /= "AGENTS.md"
+              and then Name /= "CLAUDE.md"
               and then Name /= Lower (Name)
             then
                Fail (State, Path, "file names must be lower case");
