@@ -1354,12 +1354,124 @@ procedure Devcert_Tools is
       end loop;
    end Check_Store_Names_Documented;
 
+   --  Every command the CLI accepts, documented, and named by the message that
+   --  tells a user what the commands are.
+   --
+   --  Three lists said this: the if-chain that accepts a command, docs/cli.md,
+   --  and en.cli.commands in the catalogue. The last is the one a user reads
+   --  when they get it wrong, so a command added without it is the program
+   --  telling people the wrong thing about itself.
+   procedure Check_Commands_Documented (State : in out Check_State) is
+      Source : constant String :=
+        Project_Tools.Files.Read_Raw_File (Project_Root & "/src/devcert-cli.adb");
+      Doc    : constant String :=
+        Project_Tools.Files.Read_Raw_File (Project_Root & "/docs/cli.md");
+      Catalog : constant String :=
+        Project_Tools.Files.Read_Raw_File
+          (Project_Root & "/config/messages/messages.catalog");
+
+      --  The value of en.cli.commands, after "commands: ".
+      function Announced return String is
+         Key  : constant String := "en.cli.commands = ""commands: ";
+         Mark : constant Natural := Ada.Strings.Fixed.Index (Catalog, Key);
+         Stop : Natural;
+      begin
+         if Mark = 0 then
+            return "";
+         end if;
+         Stop := Mark + Key'Length;
+         while Stop <= Catalog'Last and then Catalog (Stop) /= '"' loop
+            Stop := Stop + 1;
+         end loop;
+         return Catalog (Mark + Key'Length .. Stop - 1);
+      end Announced;
+
+      Listed : constant String := Announced;
+      Seen   : Unbounded_String;
+      From   : Positive := Source'First;
+   begin
+      if Listed = "" then
+         Fail (State, "config/messages/messages.catalog",
+               "en.cli.commands does not name the commands");
+         return;
+      end if;
+
+      --  Command = "name" in the acceptance chain, skipping the --help and
+      --  --version spellings, which are options rather than commands.
+      while From <= Source'Last loop
+         declare
+            Mark : constant Natural :=
+              Ada.Strings.Fixed.Index (Source (From .. Source'Last), "Command = """);
+            Stop : Natural;
+         begin
+            exit when Mark = 0;
+            Stop := Mark + 11;
+            while Stop <= Source'Last and then Source (Stop) /= '"' loop
+               Stop := Stop + 1;
+            end loop;
+
+            declare
+               Name : constant String := Source (Mark + 11 .. Stop - 1);
+            begin
+               if Name /= "" and then Name (Name'First) /= '-'
+                 and then Ada.Strings.Fixed.Index
+                            (To_String (Seen), " " & Name & " ") = 0
+               then
+                  Append (Seen, " " & Name & " ");
+
+                  if Ada.Strings.Fixed.Index (Doc, Name) = 0 then
+                     Fail (State, "docs/cli.md",
+                           "command " & Name & " is accepted and not"
+                           & " mentioned");
+                  end if;
+                  if Ada.Strings.Fixed.Index (Listed, Name) = 0 then
+                     Fail (State, "config/messages/messages.catalog",
+                           "command " & Name & " is accepted and en.cli.commands"
+                           & " does not name it");
+                  end if;
+               end if;
+            end;
+            From := Stop + 1;
+         end;
+      end loop;
+
+      --  And nothing announced that the chain will not take.
+      declare
+         At_Name : Positive := Listed'First;
+      begin
+         while At_Name <= Listed'Last loop
+            declare
+               Stop : Natural :=
+                 Ada.Strings.Fixed.Index (Listed (At_Name .. Listed'Last), ",");
+            begin
+               if Stop = 0 then
+                  Stop := Listed'Last + 1;
+               end if;
+               declare
+                  Name : constant String := Trim (Listed (At_Name .. Stop - 1));
+               begin
+                  if Name /= ""
+                    and then Ada.Strings.Fixed.Index
+                               (To_String (Seen), " " & Name & " ") = 0
+                  then
+                     Fail (State, "config/messages/messages.catalog",
+                           "en.cli.commands names " & Name & ", which the CLI"
+                           & " does not accept");
+                  end if;
+               end;
+               At_Name := Stop + 1;
+            end;
+         end loop;
+      end;
+   end Check_Commands_Documented;
+
    procedure Run_Generated_Artifact_Check is
       State : Check_State;
    begin
       Check_Exit_Codes_Documented (State);
       Check_Environment_Documented (State);
       Check_Store_Names_Documented (State);
+      Check_Commands_Documented (State);
 
       --  Not that the document says something about the paths, but that it
       --  says what the code does. docs/trust_stores.md listed one flatpak
