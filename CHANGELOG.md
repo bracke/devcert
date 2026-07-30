@@ -48,6 +48,32 @@ Initial development release.
   since 22.04 -- so `~/.mozilla` is empty on the commonest desktop there is, and
   an anchor installed only there went into nothing while the store reported
   success. Every root that exists is used, because a machine can have two.
+* The Flatpak root was the wrong one. Firefox 153 keeps profiles under
+  `config/mozilla/firefox` there, because a flatpak gives the application its
+  own `XDG_CONFIG_HOME`; a snap sets `HOME` and leaves that alone, so Firefox
+  falls back to `~/.mozilla` inside it. The directory devcert searched did not
+  exist at all, and a Flatpak Firefox was invisible to it.
+* `trust anchor`, the Linux backend for hosts with p11-kit and no
+  `ca-certificates`, reported failure for work it had done: p11-kit stores the
+  anchor and then runs a compat extractor Debian and Ubuntu package nowhere, so
+  `trust` exits 2 having installed the certificate. Underneath it, such a host
+  read as trusting nothing, because Ubuntu ships an empty
+  `/etc/ssl/certs/ca-certificates.crt` and the lookup asked whether the path
+  existed rather than whether it held anything.
+* On Windows the NSS store used Microsoft's `certutil.exe`, a different program
+  sharing NSS's name and the one `PATH` finds first. NSS was reported available
+  on every Windows and then failed as though a browser had refused the
+  certificate; it says `tool-missing` now, and finds NSS's `certutil` further
+  along `PATH` when it is there.
+* Validated against hosts that had never run: `trust anchor` on Ubuntu with
+  p11-kit, the Linux system store under SELinux enforcing on a Fedora VM, a
+  Flatpak Firefox, a snap-confined Firefox watched accepting a certificate, and
+  Firefox on macOS and Windows runners. `docs/platform_evidence.md` carries what
+  each found.
+* The documentation is checked against the code where it makes a factual claim:
+  the Firefox profile roots, the exit codes, the `DEVCERT_` variables, the
+  trust-store names, the commands, the options, the trust states, and the
+  options the usage text offers. Three of those lists had already drifted.
 * Trust stores moved to the `truststores` crate, which also reads them: what
   the host already trusts, as PEM a verifier can be pointed at. devcert issues
   certificates and asks that crate to install them. `DEVCERT_LINUX_TRUST_DIR`,
