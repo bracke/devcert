@@ -801,6 +801,103 @@ procedure Devcert_Tools is
             Fail (State, Path, Ada.Exceptions.Exception_Message (E));
       end Validate_Catalog;
 
+      --  What a translation must keep, whatever language it is in.
+      --
+      --  None of this judges a translation -- that needs a native speaker, and
+      --  the catalogue says so. It catches what does not: a command name or an
+      --  option that has been translated is a word the program does not accept,
+      --  and a user who types what they were shown gets an error.
+      procedure Require_Verbatim_Tokens is
+         File   : File_Type;
+         Tokens : constant array (1 .. 9) of Unbounded_String :=
+           [To_Unbounded_String ("--help"),
+            To_Unbounded_String ("--version"),
+            To_Unbounded_String ("--json"),
+            To_Unbounded_String ("--plain"),
+            To_Unbounded_String ("--color"),
+            To_Unbounded_String ("--csr"),
+            To_Unbounded_String ("PKCS#12"),
+            To_Unbounded_String ("CSR"),
+            To_Unbounded_String ("devcert")];
+
+         --  The English lines, read once and kept. Re-opening the catalogue
+         --  per key while it is already open reads as though it works and
+         --  quietly answers nothing, which turns every check below into a pass.
+         English : Unbounded_String;
+
+         function English_For (Key : String) return String is
+            Text  : constant String := To_String (English);
+            Mark  : constant String := ASCII.LF & "en." & Key & " = ";
+            Start : constant Natural := Ada.Strings.Fixed.Index (Text, Mark);
+            Stop  : Natural;
+         begin
+            if Start = 0 then
+               return "";
+            end if;
+            Stop := Ada.Strings.Fixed.Index
+                      (Text (Start + 1 .. Text'Last), "" & ASCII.LF);
+            return (if Stop = 0 then Text (Start + 1 .. Text'Last)
+                    else Text (Start + 1 .. Stop - 1));
+         end English_For;
+      begin
+         Open (File, In_File, Source_Path);
+         Append (English, ASCII.LF);
+         while not End_Of_File (File) loop
+            declare
+               Line : constant String := Get_Line (File);
+            begin
+               if Project_Tools.Text.Starts_With (Line, "en.") then
+                  Append (English, Line & ASCII.LF);
+               end if;
+            end;
+         end loop;
+         Close (File);
+
+         Open (File, In_File, Source_Path);
+         while not End_Of_File (File) loop
+            declare
+               Line  : constant String := Get_Line (File);
+               Dot   : constant Natural := Ada.Strings.Fixed.Index (Line, ".");
+               Space : constant Natural := Ada.Strings.Fixed.Index (Line, " = ");
+            begin
+               if Dot > 1 and then Space > Dot
+                 and then not Project_Tools.Text.Starts_With (Line, "en.")
+                 and then not Project_Tools.Text.Starts_With (Line, "default_")
+               then
+                  declare
+                     Key     : constant String := Line (Dot + 1 .. Space - 1);
+                     Source  : constant String := English_For (Key);
+                  begin
+                     for Token of Tokens loop
+                        declare
+                           Text : constant String := To_String (Token);
+                        begin
+                           if Source /= ""
+                             and then Project_Tools.Text.Contains (Source, Text)
+                             and then not Project_Tools.Text.Contains (Line, Text)
+                           then
+                              Fail
+                                (State,
+                                 Source_Path,
+                                 Line (Line'First .. Space - 1)
+                                 & " drops " & Text
+                                 & ", which a user types");
+                           end if;
+                        end;
+                     end loop;
+                  end;
+               end if;
+            end;
+         end loop;
+         Close (File);
+      exception
+         when E : others =>
+            if Is_Open (File) then
+               Close (File);
+            end if;
+            Fail (State, Source_Path, Ada.Exceptions.Exception_Message (E));
+      end Require_Verbatim_Tokens;
+
       procedure Require_Id (Id : String) is
       begin
          if not Project_Tools.Files.Line_Contains (Source_Path, "en." & Id & " =") then
@@ -818,6 +915,7 @@ procedure Devcert_Tools is
       Require_Id ("error.unknown_command");
       Require_Id ("json.schema");
       Require_Id ("release.passed");
+      Require_Verbatim_Tokens;
       Require_Success (State, "catalog-check");
       Put_Line ("catalog-check passed");
    end Run_Catalog_Check;

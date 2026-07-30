@@ -14,6 +14,28 @@ Slovak, Slovenian, Spanish, Swedish -- and Albanian, Belarusian, Bosnian,
 Icelandic, Macedonian, Norwegian Bokmål, Russian, Serbian, Turkish and
 Ukrainian.
 
+### What has been checked without a native speaker
+
+Three things, none of which judges a translation:
+
+* **Structural.** Every translated key has an English original and keeps its
+  `{value}` argument; nothing carries an ASCII apostrophe, which ICU reads as an
+  escape and which would swallow the placeholder after it. Enforced by
+  `devcert_tools catalog-check`.
+* **Verbatim tokens.** A command name, an option, `PKCS#12`, `CSR` or `devcert`
+  itself must survive translation: they are what a user types, and a translated
+  `--color` is a word the program rejects. Also enforced by `catalog-check`.
+* **Language identification.** Each locale's text was put to a detector
+  (`lingua`, 2026-07-30) to catch the error no structural rule can see -- fluent
+  text, correctly placeheld, in the wrong language, which is what copying a
+  neighbouring locale and adjusting a few words leaves behind. All 33 identified
+  as their own language, 31 of them at full confidence.
+
+Two caveats from that run. Bosnian scores 0.64 against Croatian and Serbian, and
+shares 18 of its 25 strings with Croatian -- which is what those languages do,
+but it is where a reviewer should start. And the detector does not know Maltese
+at all, so `mt` is unverified by this method.
+
 **These translations have not been reviewed by native speakers.** They were
 written for this catalog and are the least trustworthy part of the output: read
 an exit code, not a sentence, when it matters. Corrections are one line each.
