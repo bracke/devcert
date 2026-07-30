@@ -177,6 +177,12 @@ jobs:
           } > "$SHARE_U/run.cmd"
 
           cmd /c "net user tsdenial ${PASS} /add" 2>&1 | tr -d '\r' | tail -1
+          # A task will not start for an account without "log on as a batch
+          # job". Performance Log Users holds that right by default and holds
+          # nothing else that matters here -- it cannot write a certificate
+          # store, which is the whole point of running as this account.
+          cmd /c "net localgroup \"Performance Log Users\" tsdenial /add" \
+            2>&1 | tr -d '\r' | tail -1
           # The account has to read the build and write its answer.
           cmd /c "icacls ${SHARE_W} /grant tsdenial:(OI)(CI)F" >/dev/null 2>&1
           cmd /c "icacls $(cygpath -w "$PWD") /grant tsdenial:(OI)(CI)RX" \
