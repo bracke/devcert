@@ -86,9 +86,10 @@ devcert install system
 devcert install --trust-store system,nss,java
 ```
 
-Supported names are `system`, `nss`, and `java`; platform-specific aliases such
-as `linux`, `macos`, and `windows` are also accepted by the current adapter
-layer.
+Supported names are `system`, `nss`, and `java`. `system` resolves to whichever
+system store this host has; the store can also be named directly as `linux`,
+`macos` or `windows`, and `mac` and `win` are accepted as short forms of the
+last two.
 
 Human-readable text is routed through the localization catalog. JSON output
 contains stable `schema_version`, `status`, and `command` fields.

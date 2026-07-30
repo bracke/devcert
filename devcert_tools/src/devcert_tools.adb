@@ -1199,10 +1199,167 @@ procedure Devcert_Tools is
       end;
    end Check_Exit_Codes_Documented;
 
+   --  Every DEVCERT_ variable the program reads, documented, and none
+   --  documented that it does not read.
+   --
+   --  A variable read and not written down is a way to change behaviour that
+   --  only the source tells you about; one written down and not read is an
+   --  instruction that quietly does nothing, which is worse, because a reader
+   --  will set it and believe it took.
+   procedure Check_Environment_Documented (State : in out Check_State) is
+      Doc : constant String :=
+        Project_Tools.Files.Read_Raw_File (Project_Root & "/docs/cli.md");
+
+      --  Every DEVCERT_ name in a text, space-delimited so a prefix cannot
+      --  match a longer name: DEVCERT_HOME is not DEVCERT_HOMEDIR.
+      function Names_In (Text : String) return String is
+         Result : Unbounded_String;
+         Index  : Positive := Text'First;
+      begin
+         while Index <= Text'Last loop
+            if Text'Last - Index >= 7
+              and then Text (Index .. Index + 7) = "DEVCERT_"
+            then
+               declare
+                  Stop : Natural := Index + 8;
+               begin
+                  while Stop <= Text'Last
+                    and then (Text (Stop) in 'A' .. 'Z' or else Text (Stop) = '_')
+                  loop
+                     Stop := Stop + 1;
+                  end loop;
+                  declare
+                     Name : constant String := Text (Index .. Stop - 1);
+                  begin
+                     if Ada.Strings.Fixed.Index
+                          (To_String (Result), " " & Name & " ") = 0
+                     then
+                        Append (Result, " " & Name & " ");
+                     end if;
+                  end;
+                  Index := Stop;
+               end;
+            else
+               Index := Index + 1;
+            end if;
+         end loop;
+         return To_String (Result);
+      end Names_In;
+
+      Documented : constant String := Names_In (Doc);
+      Read       : Unbounded_String;
+
+      procedure Collect (Path : String; Name : String) is
+      begin
+         if Project_Tools.Text.Ends_With (Lower (Name), ".adb")
+           or else Project_Tools.Text.Ends_With (Lower (Name), ".ads")
+         then
+            declare
+               Found : constant String :=
+                 Names_In (Project_Tools.Files.Read_Raw_File (Path));
+               From  : Positive := Found'First;
+            begin
+               while From <= Found'Last loop
+                  declare
+                     Stop : constant Natural :=
+                       Ada.Strings.Fixed.Index (Found (From + 1 .. Found'Last), " ");
+                  begin
+                     exit when Stop = 0;
+                     declare
+                        One : constant String := Found (From + 1 .. Stop - 1);
+                     begin
+                        if One /= ""
+                          and then Ada.Strings.Fixed.Index
+                                     (To_String (Read), " " & One & " ") = 0
+                        then
+                           Append (Read, " " & One & " ");
+                        end if;
+                     end;
+                     From := Stop;
+                  end;
+               end loop;
+            end;
+         end if;
+      end Collect;
+
+      procedure Walk (Folder : String) is
+         Search : Ada.Directories.Search_Type;
+         Item   : Ada.Directories.Directory_Entry_Type;
+      begin
+         Ada.Directories.Start_Search (Search, Folder, "");
+         while Ada.Directories.More_Entries (Search) loop
+            Ada.Directories.Get_Next_Entry (Search, Item);
+            declare
+               Name : constant String := Ada.Directories.Simple_Name (Item);
+            begin
+               if Ada.Directories.Kind (Item) = Ada.Directories.Ordinary_File
+               then
+                  Collect (Ada.Directories.Full_Name (Item), Name);
+               end if;
+            end;
+         end loop;
+         Ada.Directories.End_Search (Search);
+      end Walk;
+
+      procedure Compare (Left : String; Right : String; Message : String) is
+         From : Positive := Left'First;
+      begin
+         while From <= Left'Last loop
+            declare
+               Stop : constant Natural :=
+                 Ada.Strings.Fixed.Index (Left (From + 1 .. Left'Last), " ");
+            begin
+               exit when Stop = 0;
+               declare
+                  One : constant String := Left (From + 1 .. Stop - 1);
+               begin
+                  if One /= ""
+                    and then Ada.Strings.Fixed.Index (Right, " " & One & " ") = 0
+                  then
+                     Fail (State, "docs/cli.md", One & " " & Message);
+                  end if;
+               end;
+               From := Stop;
+            end;
+         end loop;
+      end Compare;
+   begin
+      Walk (Project_Root & "/src");
+      Compare (To_String (Read), Documented, "is read by the code and not documented");
+      Compare (Documented, To_String (Read), "is documented and not read by the code");
+   end Check_Environment_Documented;
+
+   --  Every trust-store name the parser accepts, documented.
+   --
+   --  Asked of Truststores rather than listed here: the names were kept in two
+   --  places, an if-chain and a sentence, and "mac" and "win" were in the
+   --  chain and not the sentence for as long as that lasted.
+   procedure Check_Store_Names_Documented (State : in out Check_State) is
+      Doc : constant String :=
+        Project_Tools.Files.Read_Raw_File (Project_Root & "/docs/cli.md");
+   begin
+      for Index in 1 .. Truststores.Store_Name_Count loop
+         declare
+            Name : constant String := Truststores.Store_Name (Index);
+         begin
+            if Name /= ""
+              and then Ada.Strings.Fixed.Index (Doc, "`" & Name & "`") = 0
+            then
+               Fail
+                 (State, "docs/cli.md",
+                  "trust-store name " & Name & " is accepted and not"
+                  & " documented");
+            end if;
+         end;
+      end loop;
+   end Check_Store_Names_Documented;
+
    procedure Run_Generated_Artifact_Check is
       State : Check_State;
    begin
       Check_Exit_Codes_Documented (State);
+      Check_Environment_Documented (State);
+      Check_Store_Names_Documented (State);
 
       --  Not that the document says something about the paths, but that it
       --  says what the code does. docs/trust_stores.md listed one flatpak
