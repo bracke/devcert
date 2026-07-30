@@ -22,6 +22,7 @@ with Project_Tools.Text;
 with Project_Tools.Tree_Checks;
 
 with Hostkit.Host;
+with Truststores;
 
 procedure Devcert_Tools is
    use Ada.Text_IO;
@@ -504,13 +505,19 @@ procedure Devcert_Tools is
         (Project_Root & "/devcert_tools/alire.toml", "cryptolib");
       Require_Release_Dependency
         (Project_Root & "/devcert_tools/alire.toml", "hostkit");
+      Require_Release_Dependency
+        (Project_Root & "/devcert_tools/alire.toml", "truststores");
       Require_Only_Dependencies
         (State,
          Project_Root & "/devcert_tools/alire.toml",
          [To_Unbounded_String ("project_tools"),
           To_Unbounded_String ("cryptolib"),
           To_Unbounded_String ("hostkit"),
-          To_Unbounded_String ("messages")],
+          To_Unbounded_String ("messages"),
+          --  The tooling reads the Firefox profile roots from the crate that
+          --  owns them, so docs/trust_stores.md is generated from the code
+          --  rather than kept in step with it by hand.
+          To_Unbounded_String ("truststores")],
          "tooling manifest");
       Require_Workspace_Pin
         (Project_Root & "/devcert_tools/alire.toml",
@@ -1016,9 +1023,76 @@ procedure Devcert_Tools is
       Put_Line ("documentation passed");
    end Run_Documentation_Check;
 
+   --  The Firefox profile roots, rendered as docs/trust_stores.md carries them.
+   --  Truststores holds the paths with the host-dependent prefix left as a
+   --  mark; what a reader recognises for a host that is not theirs is this
+   --  file's business, so the expansion lives here and the list does not.
+   function Profile_Root_Block return String is
+      Result : Unbounded_String;
+
+      function Rendered (Host : Truststores.Host_Kind; Template : String)
+        return String
+      is
+         Home : constant String := "{home}";
+         Data : constant String := "{appdata}";
+      begin
+         if Project_Tools.Text.Starts_With (Template, Home) then
+            return "$HOME" & Template (Template'First + Home'Length .. Template'Last);
+         elsif Project_Tools.Text.Starts_With (Template, Data) then
+            return
+              (case Host is
+                  when Truststores.Windows => "%APPDATA%",
+                  when Truststores.MacOS   => "$HOME/Library/Application Support",
+                  when others              => "<app data>")
+              & Template (Template'First + Data'Length .. Template'Last);
+         else
+            return Template;
+         end if;
+      end Rendered;
+
+      procedure Emit (Host : Truststores.Host_Kind; Label : String) is
+      begin
+         for Index in 1 .. Truststores.Firefox_Profile_Root_Count (Host) loop
+            declare
+               Path : constant String :=
+                 Rendered (Host,
+                           Truststores.Firefox_Profile_Root_Candidate
+                             (Host, Index));
+               Pad  : constant Natural :=
+                 (if Path'Length >= 58 then 1 else 58 - Path'Length);
+            begin
+               Append (Result, Path & (1 .. Pad => ' ') & Label & ASCII.LF);
+            end;
+         end loop;
+      end Emit;
+   begin
+      Emit (Truststores.Linux, "(Linux)");
+      Emit (Truststores.MacOS, "(macOS)");
+      Emit (Truststores.Windows, "(Windows)");
+      return To_String (Result);
+   end Profile_Root_Block;
+
    procedure Run_Generated_Artifact_Check is
       State : Check_State;
    begin
+      --  Not that the document says something about the paths, but that it
+      --  says what the code does. docs/trust_stores.md listed one flatpak
+      --  directory for a year, and it was the one Firefox does not use.
+      declare
+         Doc : constant String :=
+           Project_Tools.Files.Read_Raw_File
+             (Project_Root & "/docs/trust_stores.md");
+         Block : constant String := Profile_Root_Block;
+      begin
+         if Ada.Strings.Fixed.Index (Doc, Block) = 0 then
+            Fail
+              (State,
+               "docs/trust_stores.md",
+               "the Firefox profile roots it lists are not the ones"
+               & " Truststores searches; expected:" & ASCII.LF & Block);
+         end if;
+      end;
+
       Project_Tools.Release_Checks.Require_Text
         (Checks, "docs/mkcert_parity.md", "<!-- generated:devcert-parity -->");
       Project_Tools.Release_Checks.Require_Text

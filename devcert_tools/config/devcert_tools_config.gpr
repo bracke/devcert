@@ -3,6 +3,7 @@ with "cryptolib.gpr";
 with "hostkit.gpr";
 with "messages.gpr";
 with "project_tools.gpr";
+with "truststores.gpr";
 abstract project Devcert_Tools_Config is
    Crate_Version := "0.1.0-dev";
    Crate_Name := "devcert_tools";

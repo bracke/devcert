@@ -136,13 +136,14 @@ trusted by Chromium and by no Firefox on the machine. devcert acts on all of
 them: the shared database, plus each profile directory holding a `cert9.db`
 under
 
+<!-- generated:devcert-profile-roots -->
 ```text
-$HOME/.mozilla/firefox                                     (Linux)
-$HOME/snap/firefox/common/.mozilla/firefox                 (Linux, snap)
-$HOME/.var/app/org.mozilla.firefox/.mozilla/firefox        (Linux, flatpak)
-$HOME/.var/app/org.mozilla.firefox/config/mozilla/firefox  (Linux, flatpak)
-$HOME/Library/Application Support/Firefox/Profiles         (macOS)
-%APPDATA%\Mozilla\Firefox\Profiles                         (Windows)
+$HOME/.mozilla/firefox                                    (Linux)
+$HOME/snap/firefox/common/.mozilla/firefox                (Linux)
+$HOME/.var/app/org.mozilla.firefox/.mozilla/firefox       (Linux)
+$HOME/.var/app/org.mozilla.firefox/config/mozilla/firefox (Linux)
+$HOME/Library/Application Support/Firefox/Profiles        (macOS)
+%APPDATA%\Mozilla\Firefox\Profiles                        (Windows)
 ```
 
 All of them, not the first that exists. Each packaging confines Firefox to its

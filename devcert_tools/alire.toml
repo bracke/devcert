@@ -21,6 +21,12 @@ hostkit = "*"
 [[depends-on]]
 messages = "*"
 
+# The Firefox profile roots that docs/trust_stores.md lists are this crate's to
+# know. Generating that list from it is what stops the document drifting from
+# the code, which it had.
+[[depends-on]]
+truststores = "*"
+
 [[pins]]
 project_tools = { path = "../../project_tools" }
 
@@ -32,6 +38,9 @@ hostkit = { path = "../../hostkit" }
 
 [[pins]]
 messages = { path = "../../messages" }
+
+[[pins]]
+truststores = { path = "../../truststores" }
 
 [build-profiles]
 "*" = "development"
