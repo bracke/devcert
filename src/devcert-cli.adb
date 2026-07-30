@@ -1,3 +1,4 @@
+with Devcert.CLI.Options;
 with Ada.Command_Line;
 with Ada.Environment_Variables;
 with Ada.Strings.Fixed;
@@ -17,6 +18,8 @@ with Devcert_Secure_Files;
 with Devcert_Trust_Stores;
 
 package body Devcert.CLI is
+
+   package Names renames Devcert.CLI.Options;
 
    procedure Run (Context : in out Devcert.Context.Runtime_Context) is
       use Ada.Strings.Unbounded;
@@ -98,27 +101,27 @@ package body Devcert.CLI is
             declare
                Item : constant String := Argument (Index);
             begin
-               if Item = "--help" then
+               if Item = Names.Help then
                   Command_Index := Index;
                   return;
-               elsif Item = "--version" then
+               elsif Item = Names.Version then
                   Command_Index := Index;
                   return;
-               elsif Item = "--json" then
+               elsif Item = Names.JSON then
                   if Seen_JSON then
                      Usage_Error
                        (Devcert_Messages.Text ("error.duplicate_option", "--json"));
                   end if;
                   Seen_JSON := True;
                   JSON_Mode := True;
-               elsif Item = "--plain" then
+               elsif Item = Names.Plain then
                   if Seen_Plain then
                      Usage_Error
                        (Devcert_Messages.Text ("error.duplicate_option", "--plain"));
                   end if;
                   Seen_Plain := True;
                   Plain_Mode := True;
-               elsif Ada.Strings.Fixed.Index (Item, "--color=") = Item'First then
+               elsif Ada.Strings.Fixed.Index (Item, Names.Color_Prefix) = Item'First then
                   if Seen_Color then
                      Usage_Error
                        (Devcert_Messages.Text ("error.duplicate_option", "--color"));
@@ -132,7 +135,7 @@ package body Devcert.CLI is
                      Usage_Error (Devcert_Messages.Text ("error.invalid_color"));
                   end if;
                   Seen_Color := True;
-               elsif Item = "--locale" then
+               elsif Item = Names.Locale then
                   if Seen_Locale then
                      Usage_Error
                        (Devcert_Messages.Text ("error.duplicate_option", "--locale"));
@@ -141,7 +144,7 @@ package body Devcert.CLI is
                      Ada.Environment_Variables.Set ("DEVCERT_LOCALE", Argument (Index));
                      Seen_Locale := True;
                   end if;
-               elsif Item = "--catalog" then
+               elsif Item = Names.Catalog then
                   if Seen_Catalog then
                      Usage_Error
                        (Devcert_Messages.Text ("error.duplicate_option", "--catalog"));
@@ -150,7 +153,7 @@ package body Devcert.CLI is
                      Ada.Environment_Variables.Set ("DEVCERT_CATALOG", Argument (Index));
                      Seen_Catalog := True;
                   end if;
-               elsif Item = "--ca-root" then
+               elsif Item = Names.CA_Root then
                   if Seen_CA_Root then
                      Usage_Error
                        (Devcert_Messages.Text ("error.duplicate_option", "--ca-root"));
@@ -201,14 +204,14 @@ package body Devcert.CLI is
                   declare
                      Item : constant String := Argument (Index);
                   begin
-                     if Item = "--server" then
+                     if Item = Names.Server then
                         if Options.Request.Count /= 0 then
                            Usage_Error
                              (Devcert_Messages.Text ("error.profile_order"));
                            return;
                         end if;
                         Options.Request := Devcert.Certificate_Requests.Empty;
-                     elsif Item = "--client" then
+                     elsif Item = Names.Client then
                         if Options.Request.Count /= 0 then
                            Usage_Error
                              (Devcert_Messages.Text ("error.profile_order"));
@@ -217,7 +220,7 @@ package body Devcert.CLI is
                         Options.Request :=
                           Devcert.Certificate_Requests.Empty
                             (Devcert.Certificate_Requests.Client);
-                     elsif Item = "--email" then
+                     elsif Item = Names.Email then
                         if Options.Request.Count /= 0 then
                            Usage_Error
                              (Devcert_Messages.Text ("error.profile_order"));
@@ -226,7 +229,7 @@ package body Devcert.CLI is
                         Options.Request :=
                           Devcert.Certificate_Requests.Empty
                             (Devcert.Certificate_Requests.Email);
-                     elsif Item = "--csr" then
+                     elsif Item = Names.CSR then
                         if Options.Has_CSR then
                            Usage_Error
                              (Devcert_Messages.Text ("error.duplicate_option", "--csr"));
@@ -237,7 +240,7 @@ package body Devcert.CLI is
                         Index := Index + 1;
                         Options.Has_CSR := True;
                         Options.CSR_File := To_Unbounded_String (Argument (Index));
-                     elsif Item = "--pkcs12" then
+                     elsif Item = Names.PKCS12 then
                         if Options.Make_PKCS12 then
                            Usage_Error
                              (Devcert_Messages.Text
@@ -245,7 +248,7 @@ package body Devcert.CLI is
                            return;
                         end if;
                         Options.Make_PKCS12 := True;
-                     elsif Item = "--p12-file" then
+                     elsif Item = Names.P12_File then
                         if Length (Options.PKCS12_File) /= 0 then
                            Usage_Error
                              (Devcert_Messages.Text
@@ -257,7 +260,7 @@ package body Devcert.CLI is
                         Index := Index + 1;
                         Options.PKCS12_File := To_Unbounded_String (Argument (Index));
                         Options.Make_PKCS12 := True;
-                     elsif Item = "--cert-file" then
+                     elsif Item = Names.Cert_File then
                         if Length (Options.Cert_File) /= 0 then
                            Usage_Error
                              (Devcert_Messages.Text
@@ -268,7 +271,7 @@ package body Devcert.CLI is
                         end if;
                         Index := Index + 1;
                         Options.Cert_File := To_Unbounded_String (Argument (Index));
-                     elsif Item = "--key-file" then
+                     elsif Item = Names.Key_File then
                         if Length (Options.Key_File) /= 0 then
                            Usage_Error
                              (Devcert_Messages.Text
@@ -279,7 +282,7 @@ package body Devcert.CLI is
                         end if;
                         Index := Index + 1;
                         Options.Key_File := To_Unbounded_String (Argument (Index));
-                     elsif Item = "--p12-password-file" then
+                     elsif Item = Names.P12_Password_File then
                         if Password_Set then
                            Usage_Error
                              (Devcert_Messages.Text ("error.duplicate_p12_password"));
@@ -292,7 +295,7 @@ package body Devcert.CLI is
                           To_Unbounded_String
                             (Devcert_Secure_Files.Read (Argument (Index)));
                         Password_Set := True;
-                     elsif Item = "--p12-password-stdin" then
+                     elsif Item = Names.P12_Password_Stdin then
                         if Password_Set then
                            Usage_Error
                              (Devcert_Messages.Text ("error.duplicate_p12_password"));
@@ -361,7 +364,7 @@ package body Devcert.CLI is
                declare
                   Item : constant String := Argument (Index);
                begin
-                  if Item = "--trust-store" then
+                  if Item = Names.Trust_Store then
                      if Seen_Store then
                         Usage_Error
                           (Devcert_Messages.Text

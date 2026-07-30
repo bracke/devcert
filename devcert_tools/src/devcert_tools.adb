@@ -1465,6 +1465,73 @@ procedure Devcert_Tools is
       end;
    end Check_Commands_Documented;
 
+   --  Every option the parser accepts, documented, and Count agreeing with the
+   --  constants beside it.
+   --
+   --  The names were literals in the parser's if-chain, so docs/cli.md carried
+   --  a second copy; --trust-store was accepted and missing from it. They live
+   --  in Devcert.CLI.Options now, read here as text because the tooling does
+   --  not depend on the program -- one constant per line is a list a reader
+   --  and a checker can both follow.
+   procedure Check_Options_Documented (State : in out Check_State) is
+      Spec : constant String :=
+        Project_Tools.Files.Read_Raw_File
+          (Project_Root & "/src/devcert-cli-options.ads");
+      Doc  : constant String :=
+        Project_Tools.Files.Read_Raw_File (Project_Root & "/docs/cli.md");
+      From  : Positive := Spec'First;
+      Found : Natural := 0;
+   begin
+      --  Name : constant String := "--x";
+      while From <= Spec'Last loop
+         declare
+            Mark : constant Natural :=
+              Ada.Strings.Fixed.Index
+                (Spec (From .. Spec'Last), "constant String := """);
+            Stop : Natural;
+         begin
+            exit when Mark = 0;
+            Stop := Mark + 20;
+            while Stop <= Spec'Last and then Spec (Stop) /= '"' loop
+               Stop := Stop + 1;
+            end loop;
+
+            declare
+               Value : constant String := Spec (Mark + 20 .. Stop - 1);
+            begin
+               --  Color_Prefix is built from Color and is not a name of its
+               --  own; it is the only constant here that is not an option.
+               if Value'Length > 2
+                 and then Value (Value'First .. Value'First + 1) = "--"
+               then
+                  Found := Found + 1;
+                  if Ada.Strings.Fixed.Index (Doc, Value) = 0 then
+                     Fail (State, "docs/cli.md",
+                           "option " & Value & " is accepted and not"
+                           & " mentioned");
+                  end if;
+               end if;
+            end;
+            From := Stop + 1;
+         end;
+      end loop;
+
+      --  Count is written by hand beside them; this is what stops it drifting.
+      declare
+         Body_Text : constant String :=
+           Project_Tools.Files.Read_Raw_File
+             (Project_Root & "/src/devcert-cli-options.adb");
+         Wanted    : constant String :=
+           "function Count return Natural is (" & Trim (Natural'Image (Found)) & ");";
+      begin
+         if Ada.Strings.Fixed.Index (Body_Text, Wanted) = 0 then
+            Fail (State, "src/devcert-cli-options.adb",
+                  "Count does not agree with the" & Natural'Image (Found)
+                  & " option names declared in the specification");
+         end if;
+      end;
+   end Check_Options_Documented;
+
    procedure Run_Generated_Artifact_Check is
       State : Check_State;
    begin
@@ -1472,6 +1539,7 @@ procedure Devcert_Tools is
       Check_Environment_Documented (State);
       Check_Store_Names_Documented (State);
       Check_Commands_Documented (State);
+      Check_Options_Documented (State);
 
       --  Not that the document says something about the paths, but that it
       --  says what the code does. docs/trust_stores.md listed one flatpak
