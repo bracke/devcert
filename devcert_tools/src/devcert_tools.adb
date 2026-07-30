@@ -1072,9 +1072,138 @@ procedure Devcert_Tools is
       return To_String (Result);
    end Profile_Root_Block;
 
+   --  Every exit code the program can return, documented, and nothing
+   --  documented that it cannot.
+   --
+   --  Devcert_Exit_Codes is read as text rather than withed: the tooling does
+   --  not depend on the product, and a list of constants in one file is not
+   --  worth inverting that for. The numbers are compared, not the prose after
+   --  them -- what a code means is a sentence for a reader, but which codes
+   --  exist is a fact, and a code added without a line here is a caller
+   --  handling an exit status nobody wrote down.
+   procedure Check_Exit_Codes_Documented (State : in out Check_State) is
+      Source : constant String :=
+        Project_Tools.Files.Read_Raw_File
+          (Project_Root & "/src/devcert_exit_codes.ads");
+      Doc    : constant String :=
+        Project_Tools.Files.Read_Raw_File (Project_Root & "/docs/cli.md");
+
+      --  "Name : constant := 7;" -> 7
+      function Codes_In_Source return String is
+         Result : Unbounded_String;
+         From   : Positive := Source'First;
+      begin
+         while From <= Source'Last loop
+            declare
+               Stop : constant Natural :=
+                 Ada.Strings.Fixed.Index (Source (From .. Source'Last), "" & ASCII.LF);
+               Line : constant String :=
+                 Source (From .. (if Stop = 0 then Source'Last else Stop - 1));
+               Mark : constant Natural :=
+                 Ada.Strings.Fixed.Index (Line, "constant :=");
+            begin
+               if Mark /= 0 then
+                  declare
+                     Tail  : constant String :=
+                       Trim (Line (Mark + 11 .. Line'Last));
+                     Digit : Natural := 0;
+                  begin
+                     while Digit < Tail'Length
+                       and then Tail (Tail'First + Digit) in '0' .. '9'
+                     loop
+                        Digit := Digit + 1;
+                     end loop;
+                     if Digit > 0 then
+                        Append
+                          (Result,
+                           " " & Tail (Tail'First .. Tail'First + Digit - 1) & " ");
+                     end if;
+                  end;
+               end if;
+               exit when Stop = 0;
+               From := Stop + 1;
+            end;
+         end loop;
+         return To_String (Result);
+      end Codes_In_Source;
+
+      Wanted : constant String := Codes_In_Source;
+   begin
+      --  Each code the program has, in the document.
+      declare
+         From : Positive := Wanted'First;
+      begin
+         while From <= Wanted'Last loop
+            declare
+               Stop : constant Natural :=
+                 Ada.Strings.Fixed.Index (Wanted (From + 1 .. Wanted'Last), " ");
+            begin
+               exit when Stop = 0;
+               declare
+                  Code : constant String := Wanted (From + 1 .. Stop - 1);
+               begin
+                  if Code /= ""
+                    and then Ada.Strings.Fixed.Index
+                               (Doc, "* `" & Code & "` ") = 0
+                  then
+                     Fail
+                       (State, "docs/cli.md",
+                        "exit code " & Code & " is in devcert_exit_codes.ads"
+                        & " and not documented");
+                  end if;
+               end;
+               From := Stop;
+            end;
+         end loop;
+      end;
+
+      --  And nothing in the document the program cannot return. Read out of
+      --  the document rather than counted over a range: the first version of
+      --  this walked 0 .. 9, so a documented 11 passed it, which is the shape
+      --  of mistake this whole check exists to catch.
+      declare
+         From : Positive := Doc'First;
+      begin
+         while From <= Doc'Last loop
+            declare
+               Mark : constant Natural :=
+                 Ada.Strings.Fixed.Index (Doc (From .. Doc'Last), "* `");
+               Stop : Natural;
+            begin
+               exit when Mark = 0;
+               Stop := Mark + 3;
+               while Stop <= Doc'Last and then Doc (Stop) in '0' .. '9' loop
+                  Stop := Stop + 1;
+               end loop;
+
+               if Stop > Mark + 3
+                 and then Stop + 1 <= Doc'Last
+                 and then Doc (Stop) = '`'
+                 and then Doc (Stop + 1) = ' '
+               then
+                  declare
+                     Code : constant String := Doc (Mark + 3 .. Stop - 1);
+                  begin
+                     if Ada.Strings.Fixed.Index (Wanted, " " & Code & " ") = 0
+                     then
+                        Fail
+                          (State, "docs/cli.md",
+                           "exit code " & Code & " is documented and not in"
+                           & " devcert_exit_codes.ads");
+                     end if;
+                  end;
+               end if;
+               From := Mark + 3;
+            end;
+         end loop;
+      end;
+   end Check_Exit_Codes_Documented;
+
    procedure Run_Generated_Artifact_Check is
       State : Check_State;
    begin
+      Check_Exit_Codes_Documented (State);
+
       --  Not that the document says something about the paths, but that it
       --  says what the code does. docs/trust_stores.md listed one flatpak
       --  directory for a year, and it was the one Firefox does not use.
