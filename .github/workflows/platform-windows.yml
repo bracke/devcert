@@ -398,12 +398,10 @@ jobs:
           find "$APPDATA/Mozilla/Firefox" -name cert9.db 2>/dev/null || echo "  none"
           echo
           echo "=== devcert install --trust-store nss"
-          DEVCERT_LOCALE=en ./bin/devcert install --trust-store nss
-          echo "exit=$?"
+          DEVCERT_LOCALE=en ./bin/devcert install --trust-store nss && echo "exit=0" || echo "exit=$?"
           echo
           echo "=== devcert uninstall --trust-store nss"
-          DEVCERT_LOCALE=en ./bin/devcert uninstall --trust-store nss
-          echo "exit=$?"
+          DEVCERT_LOCALE=en ./bin/devcert uninstall --trust-store nss && echo "exit=0" || echo "exit=$?"
 
       - name: Keep the transcript
         if: always()

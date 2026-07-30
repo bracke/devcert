@@ -75,18 +75,18 @@ jobs:
           echo
           P="$(dirname "$(find "$HOME/Library/Application Support/Firefox" -name cert9.db | head -1)")"
           echo "=== profile: $P"
-          echo "  devcert entries before: $(certutil -d "sql:$P" -L 2>/dev/null | grep -c devcert)"
+          echo "  devcert entries before: $(certutil -d "sql:$P" -L 2>/dev/null | grep -c devcert || true)"
           echo
           echo "=== devcert install --trust-store nss"
           DEVCERT_LOCALE=en ./bin/devcert install --trust-store nss
           echo "exit=$?"
-          AFTER="$(certutil -d "sql:$P" -L 2>/dev/null | grep -c devcert)"
+          AFTER="$(certutil -d "sql:$P" -L 2>/dev/null | grep -c devcert || true)"
           echo "  devcert entries after: $AFTER"
           echo
           echo "=== devcert uninstall --trust-store nss"
           DEVCERT_LOCALE=en ./bin/devcert uninstall --trust-store nss
           echo "exit=$?"
-          GONE="$(certutil -d "sql:$P" -L 2>/dev/null | grep -c devcert)"
+          GONE="$(certutil -d "sql:$P" -L 2>/dev/null | grep -c devcert || true)"
           echo "  devcert entries after removal: $GONE"
           echo
           #  Asked of the database rather than of devcert's own output, so the
