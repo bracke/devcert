@@ -11,6 +11,7 @@ Summarised, as of 2026-07-29:
 | Store | Validated |
 | --- | --- |
 | Linux system (`update-ca-certificates`, `update-ca-trust`) | yes |
+| Linux system (`trust anchor`) | yes, Ubuntu 24.04 with p11-kit and no `ca-certificates` |
 | NSS, including Firefox profiles | yes, on Linux |
 | macOS keychain | yes, macOS 14.8.7 |
 | Windows machine `Root` | yes, and the refusal an ordinary user gets |
@@ -21,6 +22,18 @@ behind a test that had checked the shape of an answer rather than asking the
 thing that would have to accept it: the NSS store, the PKCS#12 MAC, the
 fingerprint, the macOS denial report, Windows removal, and the Java
 verification.
+
+A seventh came out of the `trust anchor` run. p11-kit stores the anchor and then
+runs a compat extractor to rewrite the bundle files; Debian and Ubuntu package
+no such extractor, so `trust` exits 2 having done exactly what was asked. devcert
+believed that exit code and reported `system=error` for a certificate the host
+had just begun to trust -- and reported the same on the way out, for a removal
+that had happened. Underneath it, `System_Anchors` decided a host trusted nothing
+because Ubuntu ships `/etc/ssl/certs/ca-certificates.crt` as a zero-length file
+and the code tested whether the path existed rather than whether it held
+anything. Both now ask p11-kit, which answers on that host whatever the exit
+code says, and the store decides. This is the same lesson as the other six: the
+tool's word is not the store's state.
 
 ## Not Validated
 
@@ -33,8 +46,6 @@ What devcert itself has not established, whatever the stores can do:
   proves the snap path is found by relocating the home directory -- but no run
   has installed an anchor into a real snap-confined profile and watched Firefox
   accept it.
-* **`trust anchor`.** Selected only where neither `update-ca-certificates` nor
-  `update-ca-trust` exists, and no distribution tried reaches it.
 * **SELinux enforcing.** The Fedora container ran permissive; enforcing needs a
   virtual machine, because a container shares the host kernel and this host runs
   AppArmor.
