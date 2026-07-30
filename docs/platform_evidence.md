@@ -15,6 +15,7 @@ Summarised, as of 2026-07-29:
 | Linux system under SELinux enforcing | yes, Fedora 44 VM, `update-ca-trust` |
 | NSS, including Firefox profiles | yes, on Linux |
 | NSS in a Flatpak Firefox profile | yes, Flathub Firefox 153 on this host |
+| NSS in a snap-confined Firefox profile | yes, Ubuntu 24.04 VM, Firefox snap 153, browser accepted it |
 | macOS keychain | yes, macOS 14.8.7 |
 | Windows machine `Root` | yes, and the refusal an ordinary user gets |
 | Java keystore | yes, both the configured and the JDK's own |
@@ -54,11 +55,5 @@ What devcert itself has not established, whatever the stores can do:
 * **Firefox on macOS and Windows.** Profile discovery was validated on Linux;
   the profile root differs on the other two and only the Linux one has been
   walked.
-* **Firefox under Snap.** The snap root is searched and the suite proves it is
-  found by relocating the home directory, but no run has installed an anchor
-  into a real snap-confined profile: there is no `snapd` on the host this was
-  worked on. The Flatpak case, which was the same entry until it was tried, is
-  validated above -- and the path it was searching turned out to be the wrong
-  one, so the snap path deserves the same suspicion until something runs it.
 * **The 34 message translations.** Written for this catalogue and reviewed by no
   native speaker.
