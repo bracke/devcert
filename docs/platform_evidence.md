@@ -12,6 +12,7 @@ Summarised, as of 2026-07-29:
 | --- | --- |
 | Linux system (`update-ca-certificates`, `update-ca-trust`) | yes |
 | Linux system (`trust anchor`) | yes, Ubuntu 24.04 with p11-kit and no `ca-certificates` |
+| Linux system under SELinux enforcing | yes, Fedora 44 VM, `update-ca-trust` |
 | NSS, including Firefox profiles | yes, on Linux |
 | NSS in a Flatpak Firefox profile | yes, Flathub Firefox 153 on this host |
 | macOS keychain | yes, macOS 14.8.7 |
@@ -59,8 +60,5 @@ What devcert itself has not established, whatever the stores can do:
   worked on. The Flatpak case, which was the same entry until it was tried, is
   validated above -- and the path it was searching turned out to be the wrong
   one, so the snap path deserves the same suspicion until something runs it.
-* **SELinux enforcing.** The Fedora container ran permissive; enforcing needs a
-  virtual machine, because a container shares the host kernel and this host runs
-  AppArmor.
 * **The 34 message translations.** Written for this catalogue and reviewed by no
   native speaker.
