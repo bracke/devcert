@@ -341,7 +341,7 @@ jobs:
           pacman-key --populate msys2 || true
           for attempt in 1 2 3; do
             pacman -Sy --noconfirm --needed --disable-download-timeout \
-              mingw-w64-x86_64-openssl && break
+              mingw-w64-x86_64-openssl mingw-w64-x86_64-nss && break
             sleep 15
           done
           echo "CPATH=C:/msys64/mingw64/include" >> "$GITHUB_ENV"
@@ -397,11 +397,30 @@ jobs:
           echo "=== Firefox profiles devcert can see"
           find "$APPDATA/Mozilla/Firefox" -name cert9.db 2>/dev/null || echo "  none"
           echo
-          echo "=== devcert install --trust-store nss"
-          DEVCERT_LOCALE=en ./bin/devcert install --trust-store nss && echo "exit=0" || echo "exit=$?"
+          MINGW="/c/msys64/mingw64/bin"
+          echo "=== NSS's certutil, from MSYS2"
+          ls "$MINGW/certutil.exe" 2>/dev/null || echo "  absent"
+          "$MINGW/certutil.exe" -H 2>&1 | grep -c certdir | sed 's/^/  certdir mentions: /'
           echo
-          echo "=== devcert uninstall --trust-store nss"
-          DEVCERT_LOCALE=en ./bin/devcert uninstall --trust-store nss && echo "exit=0" || echo "exit=$?"
+          #  Both orders, because which one PATH finds first is the whole
+          #  question. Prepending NSS's is the easy case; putting System32
+          #  first is what a host gets when NSS is installed and its directory
+          #  appended, and it is the case Locate alone answers wrongly.
+          for ORDER in "nss-first" "system32-first"; do
+            case $ORDER in
+              nss-first)       P="$MINGW:/c/Windows/System32:$PATH" ;;
+              system32-first)  P="/c/Windows/System32:$MINGW:$PATH" ;;
+            esac
+            echo "=== $ORDER"
+            echo "  first certutil on PATH: $(PATH=$P command -v certutil)"
+            PATH=$P DEVCERT_LOCALE=en ./bin/devcert install --trust-store nss \
+              && echo "  install exit=0" || echo "  install exit=$?"
+            PATH=$P "$MINGW/certutil.exe" -d "sql:$(cygpath -m "$APPDATA")/Mozilla/Firefox/Profiles/$(ls "$APPDATA/Mozilla/Firefox/Profiles" | head -1)" -L 2>/dev/null \
+              | grep -c devcert | sed 's/^/  NSS certutil sees: /' || true
+            PATH=$P DEVCERT_LOCALE=en ./bin/devcert uninstall --trust-store nss \
+              && echo "  uninstall exit=0" || echo "  uninstall exit=$?"
+            echo
+          done
 
       - name: Keep the transcript
         if: always()
