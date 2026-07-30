@@ -17,7 +17,7 @@ Summarised, as of 2026-07-29:
 | NSS in a Flatpak Firefox profile | yes, Flathub Firefox 153 on this host |
 | NSS in a snap-confined Firefox profile | yes, Ubuntu 24.04 VM, Firefox snap 153 |
 | NSS in a macOS Firefox profile | yes, `macos-15-intel` runner |
-| Firefox profile discovery on Windows | yes, `windows-latest` runner |
+| NSS in a Windows Firefox profile | yes, `windows-latest` runner, with NSS's certutil |
 | macOS keychain | yes, macOS 14.8.7 |
 | Windows machine `Root` | yes, and the refusal an ordinary user gets |
 | Java keystore | yes, both the configured and the JDK's own |
@@ -58,10 +58,14 @@ asked `Locate ("certutil")` for both stores, which is right for the machine
 Windows at all and then handed arguments Microsoft's tool cannot read. What came
 back was `nss=error: failed to install NSS trust anchor devcert-32c31d07... in
 C:\Users\...\Profiles\ytycz9xq.default-release`, which names a store, a profile
-and an anchor and is wrong about all three. It now asks which program answered
-and says `nss=tool-missing: certutil is not installed`, which is the truth.
-Profile discovery on Windows was never the problem: the runner found the profile
-under `AppData\Roaming\Mozilla\Firefox\Profiles` on the first try.
+and an anchor and is wrong about all three. It now asks which program answered, and
+walks the rest of `PATH` when the first one is not NSS's -- a host with NSS
+installed and its directory appended has both, Microsoft's in front. With NSS's
+certutil present the anchor reaches the profile whichever order `PATH` is in,
+and without it the answer is `nss=tool-missing: certutil is not installed`
+rather than a fabricated refusal. Profile discovery on Windows was never the
+problem: the runner found the profile under
+`AppData\Roaming\Mozilla\Firefox\Profiles` on the first try.
 
 ## Not Validated
 
