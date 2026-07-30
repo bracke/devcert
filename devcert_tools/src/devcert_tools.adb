@@ -388,8 +388,12 @@ procedure Devcert_Tools is
          Line_Number : Positive := 1;
       begin
          if Is_Source_File (Name) then
+            --  These three are read by name from outside this project -- by
+            --  people, by forges, by agent tooling -- so their spelling is not
+            --  ours to lower-case.
             if Name /= "README.md"
               and then Name /= "CHANGELOG.md"
+              and then Name /= "AGENTS.md"
               and then Name /= Lower (Name)
             then
                Fail (State, Path, "file names must be lower case");
@@ -830,7 +834,13 @@ procedure Devcert_Tools is
             To_Unbounded_String ("doctor")];
          Findings : Messages.Consistency.Report;
       begin
-         Messages.Consistency.Check_File (Source_Path, Tokens, Findings);
+         --  Named, not positional: this call bound Findings to Locale_Only
+         --  the day that parameter was added between them, and a positional
+         --  call will do it again.
+         Messages.Consistency.Check_File
+           (Path     => Source_Path,
+            Verbatim => Tokens,
+            Into     => Findings);
 
          for Index in 1 .. Findings.Count loop
             Fail
