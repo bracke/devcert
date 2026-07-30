@@ -400,7 +400,8 @@ jobs:
           MINGW="/c/msys64/mingw64/bin"
           echo "=== NSS's certutil, from MSYS2"
           ls "$MINGW/certutil.exe" 2>/dev/null || echo "  absent"
-          "$MINGW/certutil.exe" -H 2>&1 | grep -c certdir | sed 's/^/  certdir mentions: /'
+          { "$MINGW/certutil.exe" -H 2>&1 | grep -c certdir \
+            | sed 's/^/  certdir mentions: /'; } || true
           echo
           #  Both orders, because which one PATH finds first is the whole
           #  question. Prepending NSS's is the easy case; putting System32
