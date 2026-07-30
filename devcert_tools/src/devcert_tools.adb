@@ -1532,6 +1532,102 @@ procedure Devcert_Tools is
       end;
    end Check_Options_Documented;
 
+   --  Every trust state the library can report, explained where the trust
+   --  stores are documented.
+   --
+   --  Asked of the type rather than of a list: Trust_State and State_Image are
+   --  both public, so iterating the values is the enumeration. A state a user
+   --  can be shown and cannot look up is a word they have to guess at.
+   procedure Check_Trust_States_Documented (State : in out Check_State) is
+      Doc : constant String :=
+        Project_Tools.Files.Read_Raw_File
+          (Project_Root & "/docs/trust_stores.md");
+   begin
+      for Value in Truststores.Trust_State loop
+         declare
+            Image : constant String := Truststores.State_Image (Value);
+         begin
+            --  Backticked, as the document writes every state name. Looking
+            --  for the bare word passed on "available", which appears in
+            --  "where available" and says nothing about the state.
+            if Ada.Strings.Fixed.Index (Doc, "`" & Image & "`") = 0 then
+               Fail (State, "docs/trust_stores.md",
+                     "trust state " & Image & " can be reported and is not"
+                     & " explained");
+            end if;
+         end;
+      end loop;
+   end Check_Trust_States_Documented;
+
+   --  The options the usage text names are options the parser takes.
+   --
+   --  en.cli.global_options and en.cli.global_options_paths are what a user is
+   --  shown when they ask for help, so a name in them the parser will not take
+   --  is the program misdirecting the person reading it.
+   procedure Check_Usage_Options_Accepted (State : in out Check_State) is
+      Spec : constant String :=
+        Project_Tools.Files.Read_Raw_File
+          (Project_Root & "/src/devcert-cli-options.ads");
+      Catalog : constant String :=
+        Project_Tools.Files.Read_Raw_File
+          (Project_Root & "/config/messages/messages.catalog");
+
+      procedure Check_Line (Label : String; Key : String) is
+         Mark : constant Natural := Ada.Strings.Fixed.Index (Catalog, Key);
+         Stop : Natural;
+      begin
+         if Mark = 0 then
+            Fail (State, "config/messages/messages.catalog",
+                  Label & " is not in the catalogue");
+            return;
+         end if;
+         Stop := Mark + Key'Length;
+         while Stop <= Catalog'Last and then Catalog (Stop) /= '"' loop
+            Stop := Stop + 1;
+         end loop;
+
+         declare
+            Line : constant String := Catalog (Mark + Key'Length .. Stop - 1);
+            From : Positive := Line'First;
+         begin
+            while From <= Line'Last loop
+               if Line'Last - From >= 1
+                 and then Line (From .. From + 1) = "--"
+               then
+                  declare
+                     Last : Natural := From + 2;
+                  begin
+                     while Last <= Line'Last
+                       and then (Line (Last) in 'a' .. 'z' or else Line (Last) = '-')
+                     loop
+                        Last := Last + 1;
+                     end loop;
+                     declare
+                        Named : constant String := Line (From .. Last - 1);
+                     begin
+                        if Ada.Strings.Fixed.Index
+                             (Spec, """" & Named & """") = 0
+                        then
+                           Fail (State, "config/messages/messages.catalog",
+                                 Label & " names " & Named & ", which the"
+                                 & " parser does not accept");
+                        end if;
+                     end;
+                     From := Last;
+                  end;
+               else
+                  From := From + 1;
+               end if;
+            end loop;
+         end;
+      end Check_Line;
+   begin
+      Check_Line ("en.cli.global_options",
+                  "en.cli.global_options = ""global options: ");
+      Check_Line ("en.cli.global_options_paths",
+                  "en.cli.global_options_paths = """);
+   end Check_Usage_Options_Accepted;
+
    procedure Run_Generated_Artifact_Check is
       State : Check_State;
    begin
@@ -1540,6 +1636,8 @@ procedure Devcert_Tools is
       Check_Store_Names_Documented (State);
       Check_Commands_Documented (State);
       Check_Options_Documented (State);
+      Check_Trust_States_Documented (State);
+      Check_Usage_Options_Accepted (State);
 
       --  Not that the document says something about the paths, but that it
       --  says what the code does. docs/trust_stores.md listed one flatpak
