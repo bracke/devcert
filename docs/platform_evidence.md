@@ -16,6 +16,8 @@ Summarised, as of 2026-07-29:
 | NSS, including Firefox profiles | yes, on Linux |
 | NSS in a Flatpak Firefox profile | yes, Flathub Firefox 153 on this host |
 | NSS in a snap-confined Firefox profile | yes, Ubuntu 24.04 VM, Firefox snap 153 |
+| NSS in a macOS Firefox profile | yes, `macos-15-intel` runner |
+| Firefox profile discovery on Windows | yes, `windows-latest` runner |
 | macOS keychain | yes, macOS 14.8.7 |
 | Windows machine `Root` | yes, and the refusal an ordinary user gets |
 | Java keystore | yes, both the configured and the JDK's own |
@@ -48,12 +50,22 @@ all, so a Flatpak Firefox was invisible and an anchor meant for it went nowhere
 Validated against a profile Flathub Firefox created, with `certutil` reading the
 database afterwards: installed into both profiles, then removed from both.
 
+A ninth came out of the Windows run, and it was the tool rather than the path.
+Windows ships a `certutil.exe` of its own in `System32` -- a different program
+that happens to share NSS's name -- and it is the only one a runner has. devcert
+asked `Locate ("certutil")` for both stores, which is right for the machine
+`Root` store and was never right for NSS, so NSS was reported available on any
+Windows at all and then handed arguments Microsoft's tool cannot read. What came
+back was `nss=error: failed to install NSS trust anchor devcert-32c31d07... in
+C:\Users\...\Profiles\ytycz9xq.default-release`, which names a store, a profile
+and an anchor and is wrong about all three. It now asks which program answered
+and says `nss=tool-missing: certutil is not installed`, which is the truth.
+Profile discovery on Windows was never the problem: the runner found the profile
+under `AppData\Roaming\Mozilla\Firefox\Profiles` on the first try.
+
 ## Not Validated
 
 What devcert itself has not established, whatever the stores can do:
 
-* **Firefox on macOS and Windows.** Profile discovery was validated on Linux;
-  the profile root differs on the other two and only the Linux one has been
-  walked.
 * **The 34 message translations.** Written for this catalogue and reviewed by no
   native speaker.
