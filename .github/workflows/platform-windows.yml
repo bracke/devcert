@@ -116,6 +116,13 @@ jobs:
           # at the first non-zero exit is a transcript missing the evidence.
           set +e
           set -u
+          # Git-bash rewrites arguments that look like Unix paths, so /add
+          # arrives as C:/Program Files/Git/add and net user sees no password at
+          # all. Every /switch below is subject to it -- which is also what the
+          # runas /trustlevel attempt was hitting, four runs of concluding
+          # otherwise ago.
+          export MSYS_NO_PATHCONV=1
+          export MSYS2_ARG_CONV_EXCL='*'
           LOG=windows-trust-transcript.txt
           exec > >(tee "$LOG") 2>&1
 
