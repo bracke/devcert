@@ -38,9 +38,11 @@ package Devcert.CLI.Options is
 
    --  Every option above, for a caller that has to list them: usage text, or a
    --  check that the documentation still names them all.
+   --  @return How many option names there are.
    function Count return Natural;
 
    --  @param Index in 1 .. Count; "" outside that.
+   --  @return The option name at that position.
    function Name (Index : Positive) return String;
 
 end Devcert.CLI.Options;

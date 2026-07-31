@@ -19,10 +19,17 @@ package Devcert.Commands.Cert is
       Password     : Unbounded_String;
    end record;
 
+   --  Issue a certificate for one name, with the default profile.
+   --  @param Context The run.
+   --  @param Name Subject name to issue for.
    procedure Run
      (Context : Devcert.Context.Runtime_Context;
       Name    : String);
 
+   --  Issue from fully specified options: several identities, a profile, a
+   --  CSR to sign, or a PKCS#12 bundle to write.
+   --  @param Context The run.
+   --  @param Item What to issue and where to put it.
    procedure Run
      (Context : Devcert.Context.Runtime_Context;
       Item    : Options);

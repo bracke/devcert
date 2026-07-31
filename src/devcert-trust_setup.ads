@@ -8,6 +8,9 @@
 package Devcert.Trust_Setup is
 
    --  Call once, before any trust store is looked at.
+   --  Tell the trust-store library which environment variables devcert
+   --  documents, so that a library which does not read its caller's
+   --  environment can still honour them. Called once at startup.
    procedure Apply;
 
 end Devcert.Trust_Setup;

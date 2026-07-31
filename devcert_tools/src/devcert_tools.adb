@@ -13,6 +13,7 @@ with Ada.Text_IO;
 
 with CryptoLib.Hashes;
 
+with Project_Tools.Ada_Source;
 with Project_Tools.Alire_Manifests;
 with Project_Tools.Files;
 with Project_Tools.Processes;
@@ -1631,6 +1632,37 @@ procedure Devcert_Tools is
    procedure Run_Generated_Artifact_Check is
       State : Check_State;
    begin
+      --  Every public subprogram documented on its declaration, which is
+      --  project_tools' own rule and the one that measures documentation
+      --  rather than a mention of a name.
+      declare
+         Search       : Ada.Directories.Search_Type;
+         Item         : Ada.Directories.Directory_Entry_Type;
+         Scanned      : Natural := 0;
+         Undocumented : Natural := 0;
+      begin
+         Ada.Directories.Start_Search
+           (Search, Project_Root & "/src", "*.ads",
+            Filter => [Ada.Directories.Ordinary_File => True, others => False]);
+         while Ada.Directories.More_Entries (Search) loop
+            Ada.Directories.Get_Next_Entry (Search, Item);
+            begin
+               Project_Tools.Ada_Source.Require_Public_GNATdoc_Tags
+                 (Spec_Path => Ada.Directories.Full_Name (Item));
+            exception
+               when Program_Error =>
+                  Undocumented := Undocumented + 1;
+            end;
+            Scanned := Scanned + 1;
+         end loop;
+         Ada.Directories.End_Search (Search);
+         if Undocumented /= 0 then
+            Fail (State, "src",
+                  "GNATdoc tags missing in" & Undocumented'Image & " of"
+                  & Scanned'Image & " specs");
+         end if;
+      end;
+
       Check_Exit_Codes_Documented (State);
       Check_Environment_Documented (State);
       Check_Store_Names_Documented (State);
